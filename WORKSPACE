@@ -14,6 +14,10 @@
 
 workspace(name = "psi")
 
+# add by jianjew
+load("//bazel/datasource:datasource_deps.bzl", "datasource_deps")
+datasource_deps()
+
 load("//bazel:repositories.bzl", "psi_deps")
 
 psi_deps()

@@ -1,0 +1,138 @@
+# Copyright 2023 Ant Group Co., Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "datasource_base",
+    hdrs = ["datasource_base.h"],
+)
+
+cc_library(
+    name = "datasource_adaptor",
+    hdrs = ["datasource_adaptor.h"],
+    deps = [
+        ":arrow_helper",
+        ":tensor",
+    ],
+)
+
+cc_library(
+    name = "tensor_builder",
+    srcs = ["tensor_builder.cc"],
+    hdrs = ["tensor_builder.h"],
+    deps = [
+        ":arrow_helper",
+        ":tensor",
+    ],
+)
+
+cc_library(
+    name = "primitive_builder",
+    srcs = ["primitive_builder.cc"],
+    hdrs = ["primitive_builder.h"],
+    deps = [
+        ":tensor_builder",
+        ":arrow_helper",
+        "@org_apache_arrow//:arrow",
+    ],
+)
+
+cc_library(
+    name = "arrow_helper",
+    hdrs = ["arrow_helper.h"],
+)
+
+cc_library(
+    name = "odbc_adaptor",
+    srcs = ["odbc_adaptor.cc"],
+    hdrs = ["odbc_adaptor.h"],
+    deps = [
+        ":datasource_base",
+        ":datasource_adaptor",
+        ":primitive_builder",
+        ":string_tensor_builder",
+        "@org_pocoproject_poco//:poco",
+    ],
+)
+
+cc_library(
+    name = "datasource_adaptor_mgr",
+    srcs = ["datasource_adaptor_mgr.cc"],
+    hdrs = ["datasource_adaptor_mgr.h"],
+    deps = [
+        ":datasource_base",
+        ":datasource_adaptor",
+        ":odbc_adaptor_factory",
+    ],
+)
+
+cc_library(
+    name = "datasource_adaptor_factory",
+    hdrs = ["datasource_adaptor_factory.h"],
+    deps = [
+       ":datasource_adaptor",
+       ":datasource_base",
+    ],
+)
+
+cc_library(
+    name = "odbc_adaptor_factory",
+    srcs = ["odbc_adaptor_factory.cc"],
+    hdrs = ["odbc_adaptor_factory.h"],
+    deps = [
+        ":datasource_adaptor_factory",
+        ":odbc_adaptor",
+    ],
+)
+
+cc_library(
+    name = "string_tensor_builder",
+    srcs = ["string_tensor_builder.cc"],
+    hdrs = ["string_tensor_builder.h"],
+    deps = [":tensor_builder"],
+)
+
+cc_library(
+    name = "tensor",
+    srcs = ["tensor.cc"],
+    hdrs = ["tensor.h"],
+    deps = [
+        ":datasource_base",
+        ":type",
+        "@org_apache_arrow//:arrow",
+    ],
+)
+
+
+cc_library(
+    name = "type",
+    srcs = ["type.cc"],
+    hdrs = ["type.h"],
+    deps = [
+        ":datasource_base",
+        "@org_apache_arrow//:arrow",
+    ],
+)
+
+cc_binary(
+    name = "datasource_test",
+    srcs = ["datasource_test.cpp"],
+    deps = [
+            ":datasource_adaptor_mgr",
+            ":datasource_base",
+        ],
+)
