@@ -198,13 +198,37 @@ psi_cc_library(
         "//psi/proto:pir_cc_proto",
         "//psi/utils:serialize",
         "//psi/utils:sync",
+        ":datasource_operate",
         "@yacl//yacl/crypto/block_cipher:symmetric_crypto",
+    ],
+)
+
+cc_library(
+    name = "datasource_operate",
+    srcs = ["datasource_operate.cc"],
+    hdrs = ["datasource_operate.h"],
+    deps = [
+        "//psi/datasource:datasource_adaptor_mgr",
+        "//psi/datasource:datasource_base",
+        "//psi/utils:arrow_csv_batch_provider",
+        "//psi/proto:pir_cc_proto",
+        "@com_github_tencent_rapidjson//:rapidjson",
     ],
 )
 
 psi_cc_test(
     name = "pir_test",
     srcs = ["pir_test.cc"],
+    deps = [
+        ":pir",
+        "//psi/utils:io",
+        "@yacl//yacl/utils:scope_guard",
+    ],
+)
+
+psi_cc_test(
+    name = "pir_datasource_test",
+    srcs = ["pir_datasource_test.cc"],
     deps = [
         ":pir",
         "//psi/utils:io",

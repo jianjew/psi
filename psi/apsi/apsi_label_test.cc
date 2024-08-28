@@ -101,6 +101,9 @@ GenerateSenderData(size_t seed, size_t item_count, size_t label_byte_count,
 class LabelPsiTest : public testing::TestWithParam<TestParams> {};
 
 TEST_P(LabelPsiTest, Works) {
+  std::string sender_csv_file = "examples/pir/data/server.csv";
+  std::string receiver_query_file =
+      "examples/pir/data/client.csv";
   auto params = GetParam();
   auto ctxs = yacl::link::test::SetupWorld(2);
   ::apsi::PSIParams psi_params = GetPsiParams(params.nr, params.ns);

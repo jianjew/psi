@@ -38,6 +38,7 @@
 #include "psi/utils/io.h"
 #include "psi/utils/serialize.h"
 #include "psi/utils/sync.h"
+#include "datasource_operate.h"
 
 namespace psi::apsi {
 
@@ -213,7 +214,12 @@ PirResultReport PirServerSetup(const PirServerConfig &config) {
   label_columns.insert(label_columns.end(), config.label_columns().begin(),
                        config.label_columns().end());
 
-  size_t server_data_count = CsvFileDataCount(config.input_path(), key_columns);
+  // add by jianjew
+  std::cout << "*****PirServerSetup 0*****" << std::endl;
+  auto datasource_operate = std::make_shared<DatasourceOperate>(config);
+  size_t server_data_count = datasource_operate->CountDataContentNums();
+  std::cout << "cserver_data_count: " << server_data_count << std::endl;
+  //size_t server_data_count = CsvFileDataCount(config.input_path(), key_columns);  // todo 修改点 在这里解析json
   size_t count_per_query = config.apsi_server_config().num_per_query();
 
   size_t bucket_size = config.bucket_size();
@@ -225,7 +231,6 @@ PirResultReport PirServerSetup(const PirServerConfig &config) {
 
   size_t label_byte_count = config.label_max_len();
   size_t nonce_byte_count = kNonceByteCount;
-
   std::string kv_store_path = config.setup_path();
   // delete store path
   {
@@ -251,15 +256,15 @@ PirResultReport PirServerSetup(const PirServerConfig &config) {
               psi_params.seal_params().poly_modulus_degree());
   SPDLOG_INFO("query_params query_powers size:{}",
               psi_params.query_params().query_powers.size());
-
   WriteMetaInfo(kv_store_path, server_data_count, count_per_query,
                 label_byte_count, label_columns, psi_params, bucket_count,
                 config.apsi_server_config().oprf_key_path(),
                 config.bucket_size(), config.apsi_server_config().compressed());
-
-  std::shared_ptr<::psi::ILabeledBatchProvider> batch_provider =
-      std::make_shared<::psi::ArrowCsvBatchProvider>(
-          config.input_path(), key_columns, bucket_size, label_columns);
+  std::cout << "*****PirServerSetup 2 *****" << std::endl;
+  // std::shared_ptr<::psi::ILabeledBatchProvider> batch_provider =
+  //     std::make_shared<::psi::ArrowCsvBatchProvider>(
+  //         config.input_path(), key_columns, bucket_size, label_columns);
+  std::cout << "*****PirServerSetup 3 *****" << std::endl;
   for (size_t i = 0; i < bucket_count; i++) {
     std::string bucket_setup_path =
         fmt::format("{}/bucket_{}", kv_store_path, i);
@@ -268,13 +273,12 @@ PirResultReport PirServerSetup(const PirServerConfig &config) {
 
     std::vector<std::string> batch_ids;
     std::vector<std::string> batch_labels;
-    std::tie(batch_ids, batch_labels) = batch_provider->ReadNextLabeledBatch();
-
+    std::tie(batch_ids, batch_labels) = datasource_operate->GetDatasouceBatchContent();
     if (batch_ids.empty()) {
       SPDLOG_INFO("Finish read data");
       break;
     }
-
+    std::cout << "*****PirServerSetup 4 *****" << std::endl;
     std::filesystem::create_directory(bucket_setup_path);
 
     ::apsi::PSIParams bucket_psi_params = GetPsiParams(

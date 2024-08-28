@@ -25,6 +25,11 @@ namespace psi {
     CSVDB=5,
   };
 
+ enum DataSourceKindSub {
+    POSTGRESQL_ODBC = 0,
+    DAMENG_ODBC = 1,
+  };
+
   struct DataSource {
     // datasource uuid
     std::string id;

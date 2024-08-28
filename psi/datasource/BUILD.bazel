@@ -128,6 +128,17 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "datasource_operate",
+    srcs = ["datasource_operate.cc"],
+    hdrs = ["datasource_operate.h"],
+    deps = [
+        "@com_github_tencent_rapidjson//:rapidjson",
+        ":datasource_adaptor_mgr",
+        ":datasource_base",
+    ],
+)
+
 cc_binary(
     name = "datasource_test",
     srcs = ["datasource_test.cpp"],
@@ -136,3 +147,4 @@ cc_binary(
             ":datasource_base",
         ],
 )
+

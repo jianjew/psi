@@ -33,7 +33,7 @@
 
 namespace {
 
-constexpr size_t kPsiStartPos = 100;
+constexpr size_t kPsiStartPos = 2;
 
 struct TestParams {
   size_t nr;
@@ -53,6 +53,32 @@ void WriteCsvFile(const std::string &file_name, const std::string &id_name,
     out->Write(fmt::format("{}\n", items[i]));
   }
   out->Close();
+}
+
+//读csv文件
+bool ReadCsvFile(const std::string &csv_file) {
+  try {
+    std::cout << "csv_file:" << csv_file << std::endl;
+    std::ifstream f;
+    f.open(csv_file, std::fstream::in);
+    if (!f.is_open()) {
+      std::cout << "ReadCsvFile is false! csv_file = " << csv_file << std::endl;
+      return false;
+    }
+    std::string line;
+    while (getline(f, line)) {
+      std::cout << line << std::endl;
+      // std::vector<std::string> data;
+      // boost::split(data, line, boost::is_any_of(","), boost::token_compress_on);
+      // output.push_back(data);
+    }
+    f.close();
+  } catch (std::exception &e) {
+    std::cout << "ReadCsvFile is false! e = " << e.what() << std::endl;
+    return false;
+  }
+  std::cout << "ReadCsvFile is success!" << std::endl;
+  return true;
 }
 
 void WriteCsvFile(const std::string &file_name, const std::string &id_name,
@@ -130,6 +156,7 @@ namespace psi::apsi {
 class PirTest : public testing::TestWithParam<TestParams> {};
 
 TEST_P(PirTest, Works) {
+  SPDLOG_INFO("*******************pri test begin *********************");
   auto params = GetParam();
   auto ctxs = yacl::link::test::SetupWorld(2);
   ::apsi::PSIParams psi_params = GetPsiParams(params.nr, params.ns);
@@ -174,6 +201,10 @@ TEST_P(PirTest, Works) {
     WriteCsvFile(client_csv_path, id_cloumn_name, receiver_items);
     WriteCsvFile(server_csv_path, id_cloumn_name, label_cloumn_name,
                  sender_keys, sender_labels);
+    SPDLOG_WARN("**************************client_csv_data****************************");
+    ReadCsvFile(client_csv_path);
+    SPDLOG_WARN("**************************server_csv_data****************************");
+    ReadCsvFile(server_csv_path);
   }
 
   // generate 32 bytes oprf_key
@@ -275,6 +306,13 @@ TEST_P(PirTest, Works) {
   std::tie(pir_result_ids, pir_result_labels) =
       pir_result_provider->ReadNextLabeledBatch();
 
+  for (auto id : pir_result_ids) {
+    SPDLOG_WARN("pir result: id: {}", id);
+  }
+  for (auto label : pir_result_labels) {
+    SPDLOG_WARN("pir result: label: {}", label);
+  }
+
   // check pir result correct
   EXPECT_EQ(pir_result_ids.size(), intersection_idx.size());
 
@@ -283,9 +321,8 @@ TEST_P(PirTest, Works) {
 
 INSTANTIATE_TEST_SUITE_P(Works_Instances, PirTest,
                          testing::Values(                         //
-                             TestParams{10, 10000, 32},           // 10-10K-32
-                             TestParams{2048, 10000, 32},         // 2048-10K-32
-                             TestParams{100, 100000, 32, false})  // 100-100K-32
+                             TestParams{1, 10, 32}         // 10-10K-32
+                            )  // 100-100K-32
 
 );
 

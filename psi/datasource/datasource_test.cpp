@@ -1,7 +1,7 @@
 #include <iostream>
+#include <chrono>
 #include "datasource_base.h"
 #include "datasource_adaptor_mgr.h"
-
 
 using namespace std;
 
@@ -12,13 +12,8 @@ using namespace std;
 #define POSTGRESQL_SERVER  "172.16.16.116"
 #define POSTGRESQL_ODBC_DRIVER "PostgreSQL Unicode"
 
-// int main()
-// {
-//     cout << "Hello world!" << endl;
-//     return 0;
-// }
 
-std::unique_ptr<Poco::Data::Session> session_;
+// std::unique_ptr<Poco::Data::Session> session_;
 
 // void SetUp() {
 //     std::cout << "start setup..." << std::endl;
