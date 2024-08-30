@@ -15,25 +15,26 @@
 #include "tensor.h"
 
 #include "type.h"
+#include "arrow/compute/api.h"
 
 namespace psi {
 
 Tensor::Tensor(std::shared_ptr<arrow::ChunkedArray> chunked_arr)
     : chunked_arr_(std::move(chunked_arr)) {
   // try to cast decimal128(x, 0) to int64
-//  if (chunked_arr_->type()->id() == arrow::Type::DECIMAL128) {
-//    auto decimal_type =
-//        std::dynamic_pointer_cast<arrow::Decimal128Type>(chunked_arr_->type());
-//    if (decimal_type->scale() == 0) {
-//      auto to_datatype = arrow::int64();
-//
-////      arrow::compute::CastOptions options;
-////      options.allow_decimal_truncate = true;
-////      auto result = arrow::compute::Cast(chunked_arr_, to_datatype, options); // todo
-////      chunked_arr_ = result.ValueOrDie().chunked_array();
-//    }
-//  }
-//  dtype_ = FromArrowDataType(chunked_arr_->type());
+ if (chunked_arr_->type()->id() == arrow::Type::DECIMAL128) {
+   auto decimal_type =
+       std::dynamic_pointer_cast<arrow::Decimal128Type>(chunked_arr_->type());
+   if (decimal_type->scale() == 0) {
+     auto to_datatype = arrow::int64();
+
+     arrow::compute::CastOptions options;
+     options.allow_decimal_truncate = true;
+     auto result = arrow::compute::Cast(chunked_arr_, to_datatype, options); // todo
+     chunked_arr_ = result.ValueOrDie().chunked_array();
+   }
+ }
+ dtype_ = FromArrowDataType(chunked_arr_->type());
 }
 
 }  // namespace scql::engine

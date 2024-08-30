@@ -218,7 +218,7 @@ PirResultReport PirServerSetup(const PirServerConfig &config) {
   std::cout << "*****PirServerSetup 0*****" << std::endl;
   auto datasource_operate = std::make_shared<DatasourceOperate>(config);
   size_t server_data_count = datasource_operate->CountDataContentNums();
-  std::cout << "cserver_data_count: " << server_data_count << std::endl;
+  std::cout << "server_data_count: " << server_data_count << std::endl;
   //size_t server_data_count = CsvFileDataCount(config.input_path(), key_columns);  // todo 修改点 在这里解析json
   size_t count_per_query = config.apsi_server_config().num_per_query();
 
@@ -278,6 +278,15 @@ PirResultReport PirServerSetup(const PirServerConfig &config) {
       SPDLOG_INFO("Finish read data");
       break;
     }
+
+    for (auto& id : batch_ids) {
+      std::cout << "batch id: " << id << std::endl;
+    }
+    for (auto& id : batch_labels) {
+      std::cout << "batch_labels id: " << id << std::endl;
+    }
+
+
     std::cout << "*****PirServerSetup 4 *****" << std::endl;
     std::filesystem::create_directory(bucket_setup_path);
 

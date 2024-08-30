@@ -212,6 +212,8 @@ cc_library(
         "//psi/datasource:datasource_base",
         "//psi/utils:arrow_csv_batch_provider",
         "//psi/proto:pir_cc_proto",
+        "@org_apache_arrow//:arrow",
+        "//psi/utils:key",
         "@com_github_tencent_rapidjson//:rapidjson",
     ],
 )

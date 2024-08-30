@@ -17,9 +17,16 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <boost/algorithm/string/join.hpp>
 
 #include "rapidjson/document.h"
 #include "rapidjson/stringbuffer.h"
+#include "arrow/api.h"
+#include "arrow/compute/api.h"
+#include "arrow/array.h"
+#include "arrow/datum.h"
+#include "arrow/io/api.h"
+
 
 namespace psi {
 
@@ -70,11 +77,6 @@ DatasourceOperate::DatasourceOperate(const PirServerConfig &config) {
       DataSource options;
       options.kind = datasource_kind_;
       options.connection_str = connection_str_;
-      std::stringstream ss;
-      std::copy(key_columns_.begin(), key_columns_.end(), std::ostream_iterator<std::string>(ss, " AND "));
-      std::string concat_str = std::move(ss.str());
-      std::string query = "SELECT COUNT(*) FROM table_name_ WHERE " + concat_str + ";";
-      std::cout << query << std::endl;
       std::unique_ptr<psi::DatasourceAdaptorMgr> datasourceAdaptorMgr = std::make_unique<psi::DatasourceAdaptorMgr>();
       adaptor_ = datasourceAdaptorMgr->GetAdaptor(options);
   }
@@ -91,18 +93,15 @@ size_t DatasourceOperate::CountDataContentNums() {
     case DataSourceKind::MYSQL:
     case DataSourceKind::POSTGRESQL:
     case DataSourceKind::ODBC:
-      // DataSource options;
-      // options.kind = datasource_kind_;
-      // options.connection_str = connection_str_;
-      // std::stringstream ss;
-      // std::copy(key_columns_.begin(), key_columns_.end(), std::ostream_iterator<std::string>(ss, " AND "));
-      // std::string concat_str = std::move(ss.str());
-      // str.pop_back();
-      
+      std::string query = "SELECT COUNT(*) FROM " + table_name_ + ";";
+      std::cout << query << std::endl;
       try {
-            // auto results = adaptor->ExecQuery(query);
-            // std::cout << "tensor size: " << results.size() << std::endl;
-            // count = result;
+            auto query_result = adaptor_->ExecQuery(query);
+            assert(query_result.size() == 1);
+            assert(query_result[0]->Length() == 1);
+            auto num = query_result[0].get()->ToArrowChunkedArray()->GetScalar(0).ValueOrDie();
+            std::stringstream sstream(num->ToString());
+            sstream >> count;
       } catch (const std::exception& e) {
             std::cout << "捕获到异常: " << e.what() << std::endl;
       }
@@ -119,8 +118,86 @@ std::pair<std::vector<std::string>, std::vector<std::string>> DatasourceOperate:
     case DataSourceKind::CSVDB:
       data_batch_content = csv_batch_provider_->ReadNextLabeledBatch();
       break;
+    case DataSourceKind::MYSQL:
+    case DataSourceKind::POSTGRESQL:
+    case DataSourceKind::ODBC:
+      data_batch_content = GetTableBatchContent();
+      break;
+
   }
   return data_batch_content;
+}
+
+std::pair<std::vector<std::string>, std::vector<std::string>> DatasourceOperate::GetTableBatchContent() {
+  std::vector<std::string> read_keys;
+  std::vector<std::string> read_labels;
+  std::vector<std::string> select_query(key_columns_.begin(), key_columns_.end());
+  select_query.insert(select_query.end(), label_columns_.begin(), label_columns_.end());
+  auto query_join = boost::algorithm::join(select_query, ",");
+  std::string query = "SELECT " + query_join + " FROM " + table_name_ + ";";
+  std::cout << query << std::endl;
+  try {
+        auto query_result = adaptor_->ExecQuery(query);
+        size_t num_rows = query_result[0]->Length();
+        std::cout << "batch num_rows: " << num_rows << std::endl;
+        std::vector<std::shared_ptr<arrow::StringArray>> arrays;
+        arrays.clear();
+        for (int i = 0; i < query_result.size(); i++) {
+            std::shared_ptr<arrow::ChunkedArray> chunked_array = query_result[i]->ToArrowChunkedArray();
+            arrays.emplace_back(std::static_pointer_cast<arrow::StringArray>(chunked_array->chunk(0)));
+        }
+
+        // for (auto arry : arrays) {
+        //   std::cout << "arry: " << arry->ToString() << std::endl;
+        // }
+        // std::cout << "arrays[i]->Value(idx_in_batch): " << arrays[0]->GetScalar(2).ValueOrDie()->ToString() << std::endl;
+        // std::cout << "arrays[i]->Value(idx_in_batch): " << arrays[2]->GetScalar(2).ValueOrDie()->ToString() << std::endl;
+        // std::cout << "arrays[i]->Value(idx_in_batch): " << arrays[1]->GetScalar(2).MoveValueUnsafe()->ToString() << std::endl;
+        // //std::cout << "arrays[i]->Value(idx_in_batch): " << arrays[1]->View(2) << std::endl;
+        
+        std::cout << "key_columns_ size: " << key_columns_.size() << std::endl;
+        for (int64_t idx_in_batch = 0; idx_in_batch < num_rows; idx_in_batch++) {
+          {
+            std::vector<std::string> values;
+            for (size_t i = 0; i < key_columns_.size(); i++) {
+             if (arrays[i]->type()->id() == arrow::Type::STRING || arrays[i]->type()->id() == arrow::Type::LARGE_STRING) {
+                std::string tmp_str = arrays[i]->GetScalar(idx_in_batch).ValueOrDie()->ToString();
+                int start_idx = tmp_str.find_first_of('"') + 1;
+                int end_idx = tmp_str.find_last_of('"');
+                tmp_str = tmp_str.substr(start_idx, end_idx - start_idx);
+                values.emplace_back(tmp_str);
+              } else {
+                values.emplace_back(arrays[i]->GetScalar(idx_in_batch).ValueOrDie()->ToString());
+              }
+            }
+            auto str_join = boost::algorithm::join(values, ",");
+            read_keys.emplace_back(str_join);
+          }
+  
+          {
+            std::vector<std::string> values;
+            for (size_t i = key_columns_.size(); i < query_result.size(); i++) {
+              if (arrays[i]->type()->id() == arrow::Type::STRING || arrays[i]->type()->id() == arrow::Type::LARGE_STRING) {
+                std::string tmp_str = arrays[i]->GetScalar(idx_in_batch).ValueOrDie()->ToString();
+                int start_idx = tmp_str.find_first_of('"') + 1;
+                int end_idx = tmp_str.find_last_of('"');
+                absl::string_view view = tmp_str.substr(start_idx, end_idx - start_idx);
+                values.emplace_back(view);
+              } else {
+                values.emplace_back(arrays[i]->GetScalar(idx_in_batch).ValueOrDie()->ToString());
+              }
+            }
+            auto str_join = boost::algorithm::join(values, ",");
+            read_labels.emplace_back(str_join);
+          }
+        }
+        
+        return std::make_pair(read_keys, read_labels);
+      
+  } catch (const std::exception& e) {
+        std::cout << "捕获到异常: " << e.what() << std::endl;
+  }
+  
 }
 
 }  // namespace psi

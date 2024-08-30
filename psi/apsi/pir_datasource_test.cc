@@ -112,15 +112,15 @@ TEST_P(PirTest, Works) {
   //std::string server_csv_path = "examples/pir/data/server.csv";
 
 
-  // const std::string& server_csv_path = "{\n"
-  //                            "  \"connection_str\": \"DRIVER=PostgreSQL Unicode;DATABASE=postgres;SERVER=172.16.16.116;PORT=9876;UID=postgres;PWD=123456;\",\n"
-  //                            "  \"datasource_kind\": 3,\n"
-  //                            "  \"table_name\": \"test_person\"\n"
-  //                            "}";
   const std::string& server_csv_path = "{\n"
-                             "  \"datasource_kind\": 5,\n"
-                             "  \"server_file_path\": \"examples/pir/data/server.csv\"\n"
+                             "  \"connection_str\": \"DRIVER=PostgreSQL Unicode;DATABASE=postgres;SERVER=172.16.16.116;PORT=9876;UID=postgres;PWD=123456;\",\n"
+                             "  \"datasource_kind\": 3,\n"
+                             "  \"table_name\": \"test_person\"\n"
                              "}";
+  // const std::string& server_csv_path = "{\n"
+  //                            "  \"datasource_kind\": 5,\n"
+  //                            "  \"server_file_path\": \"examples/pir/data/server.csv\"\n"
+  //                            "}";
   std::string pir_result_path = "examples/pir/data/pir_result.csv";
   
   std::string id_cloumn_name = "id";
@@ -146,7 +146,7 @@ TEST_P(PirTest, Works) {
   //     fmt::format("{}/pir_result.csv", tmp_store_path);
 
   std::vector<std::string> ids = {id_cloumn_name};
-  std::vector<std::string> labels = {label_cloumn_name};
+  std::vector<std::string> labels = {"label"};
 
   if (params.use_filedb) {
     SPDLOG_WARN("**********************data is ready, now to compute************************");
@@ -255,7 +255,7 @@ TEST_P(PirTest, Works) {
 
 INSTANTIATE_TEST_SUITE_P(Works_Instances, PirTest,
                          testing::Values(                         //
-                             TestParams{1, 10, 32}         // 10-10K-32
+                             TestParams{1, 15, 64}         // 10-10K-32
                              )  // 100-100K-32
 
 );

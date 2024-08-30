@@ -38,6 +38,9 @@ class DatasourceOperate {
   std::pair<std::vector<std::string>, std::vector<std::string>> GetDatasouceBatchContent();
 
  private:
+  std::pair<std::vector<std::string>, std::vector<std::string>> GetTableBatchContent();
+
+ private:
   std::string connection_str_;
   DataSourceKind datasource_kind_;
   DataSourceKindSub datasource_kind_sub_;
