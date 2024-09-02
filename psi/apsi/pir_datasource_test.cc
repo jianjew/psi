@@ -111,19 +111,28 @@ TEST_P(PirTest, Works) {
   std::string client_csv_path ="examples/pir/data/client.csv";
   //std::string server_csv_path = "examples/pir/data/server.csv";
 
-
+// pg
   const std::string& server_csv_path = "{\n"
                              "  \"connection_str\": \"DRIVER=PostgreSQL Unicode;DATABASE=postgres;SERVER=172.16.16.116;PORT=9876;UID=postgres;PWD=123456;\",\n"
                              "  \"datasource_kind\": 3,\n"
                              "  \"table_name\": \"test_person\"\n"
                              "}";
+
+  // dm
+  //  const std::string& server_csv_path = "{\n"
+  //                            "  \"connection_str\": \"DSN=dm;SERVER=172.16.0.217;UID=SYSDBA;PWD=SYSDBA001;TCP_PORT=52360;\",\n"
+  //                            "  \"datasource_kind\": 3,\n"
+  //                            "  \"table_name\": \"CREDIT_ACTIVE000\"\n"
+  //                            "}";
+
+  // csv file
   // const std::string& server_csv_path = "{\n"
   //                            "  \"datasource_kind\": 5,\n"
   //                            "  \"server_file_path\": \"examples/pir/data/server.csv\"\n"
   //                            "}";
   std::string pir_result_path = "examples/pir/data/pir_result.csv";
   
-  std::string id_cloumn_name = "id";
+  std::string id_cloumn_name = "ID";
   std::string label_cloumn_name = "label";
 
   std::vector<size_t> intersection_idx;
@@ -145,7 +154,7 @@ TEST_P(PirTest, Works) {
   // std::string pir_result_path =
   //     fmt::format("{}/pir_result.csv", tmp_store_path);
 
-  std::vector<std::string> ids = {id_cloumn_name};
+  std::vector<std::string> ids = {"id", "name", "age"};
   std::vector<std::string> labels = {"label"};
 
   if (params.use_filedb) {
