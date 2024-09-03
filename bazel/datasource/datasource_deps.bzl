@@ -15,6 +15,8 @@
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+package(default_visibility = ["//visibility:public"])
+
 def datasource_deps():
     _org_apache_arrow()
     _org_pocoproject_poco()
