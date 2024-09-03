@@ -14,6 +14,8 @@
 
 load("@psi//bazel:psi.bzl", "psi_cmake_external")
 
+package(default_visibility = ["//visibility:public"])
+
 filegroup(
     name = "all_srcs",
     srcs = glob(["**"]),
