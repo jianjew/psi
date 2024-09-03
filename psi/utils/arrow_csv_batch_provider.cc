@@ -16,6 +16,7 @@
 
 #include <cassert>
 #include <filesystem>
+#include <iostream>
 
 #include "arrow/array.h"
 #include "arrow/compute/api.h"
@@ -84,6 +85,7 @@ void ArrowCsvBatchProvider::ReadNextBatch(
       for (const auto& col : batch_->columns()) {
         arrays_.emplace_back(
             std::dynamic_pointer_cast<arrow::StringArray>(col));
+        std::cout << "batch col: " << col->ToString() << std::endl;
       }
     }
 
@@ -91,21 +93,25 @@ void ArrowCsvBatchProvider::ReadNextBatch(
          idx_in_batch_ < batch_->num_rows() && read_keys->size() < batch_size_;
          idx_in_batch_++) {
       {
+        std::cout << "idx_in_batch_: " << idx_in_batch_ << ", keys_.size(): " << keys_.size() << std::endl;
         std::vector<absl::string_view> values;
         for (size_t i = 0; i < keys_.size(); i++) {
           values.emplace_back(arrays_[i]->Value(idx_in_batch_));
         }
 
         read_keys->emplace_back(KeysJoin(values));
+        std::cout << "KeysJoin(values): " << KeysJoin(values) << std::endl;
       }
 
       if (read_labels) {
         std::vector<absl::string_view> values;
         for (size_t i = keys_.size(); i < arrays_.size(); i++) {
+          std::cout << "arrays_[i]->Value(idx_in_batch_): " << arrays_[i]->Value(idx_in_batch_) << std::endl;
           values.emplace_back(arrays_[i]->Value(idx_in_batch_));
         }
 
         read_labels->emplace_back(KeysJoin(values));
+        std::cout << "KeysJoin(values): " << KeysJoin(values) << std::endl;
       }
       row_cnt_++;
     }

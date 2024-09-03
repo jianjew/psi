@@ -44,17 +44,6 @@ struct TestParams {
   size_t bucket_size = 1000000;
 };
 
-void WriteCsvFile(const std::string &file_name, const std::string &id_name,
-
-                  const std::vector<std::string> &items) {
-  auto out = psi::io::BuildOutputStream(psi::io::FileIoOptions(file_name));
-  out->Write(fmt::format("{}\n", id_name));
-  for (size_t i = 0; i < items.size(); ++i) {
-    out->Write(fmt::format("{}\n", items[i]));
-  }
-  out->Close();
-}
-
 //读csv文件
 bool ReadCsvFile(const std::string &csv_file) {
   try {
@@ -81,18 +70,6 @@ bool ReadCsvFile(const std::string &csv_file) {
   return true;
 }
 
-void WriteCsvFile(const std::string &file_name, const std::string &id_name,
-                  const std::string &label_name,
-                  const std::vector<std::string> &items,
-                  const std::vector<std::string> &labels) {
-  auto out = psi::io::BuildOutputStream(psi::io::FileIoOptions(file_name));
-  out->Write(fmt::format("{},{}\n", id_name, label_name));
-  for (size_t i = 0; i < items.size(); ++i) {
-    out->Write(fmt::format("{},{}\n", items[i], labels[i]));
-  }
-  out->Close();
-}
-
 void WriteSecretKey(const std::string &ecdh_secret_key_path) {
   std::ofstream wf(ecdh_secret_key_path, std::ios::out | std::ios::binary);
 
@@ -102,53 +79,6 @@ void WriteSecretKey(const std::string &ecdh_secret_key_path) {
   wf.close();
 }
 
-std::vector<std::string> GenerateData(size_t seed, size_t item_count) {
-  yacl::crypto::Prg<uint128_t> prg(seed);
-
-  std::vector<std::string> items;
-
-  for (size_t i = 0; i < item_count; ++i) {
-    std::string item(16, '\0');
-    prg.Fill(absl::MakeSpan(item.data(), item.length()));
-    items.emplace_back(absl::BytesToHexString(item));
-  }
-
-  return items;
-}
-
-std::pair<std::vector<std::string>, std::vector<std::string>>
-GenerateSenderData(size_t seed, size_t item_count, size_t label_byte_count,
-                   const absl::Span<std::string> &receiver_items,
-                   std::vector<size_t> *intersection_idx,
-                   std::vector<std::string> *intersection_label) {
-  std::vector<std::string> sender_items;
-  std::vector<std::string> sender_labels;
-
-  yacl::crypto::Prg<uint128_t> prg(seed);
-
-  for (size_t i = 0; i < item_count; ++i) {
-    std::string item(16, '\0');
-    std::string label((label_byte_count - 1) / 2, '\0');
-
-    prg.Fill(absl::MakeSpan(item.data(), item.length()));
-    prg.Fill(absl::MakeSpan(label.data(), label.length()));
-    sender_items.emplace_back(absl::BytesToHexString(item));
-    sender_labels.emplace_back(absl::BytesToHexString(label));
-  }
-
-  for (size_t i = 0; i < receiver_items.size(); i += 3) {
-    if ((kPsiStartPos + i * 5) >= sender_items.size()) {
-      break;
-    }
-    sender_items[kPsiStartPos + i * 5] = receiver_items[i];
-    (*intersection_idx).emplace_back(i);
-
-    (*intersection_label).emplace_back(sender_labels[kPsiStartPos + i * 5]);
-  }
-
-  return std::make_pair(sender_items, sender_labels);
-}
-
 }  // namespace
 
 namespace psi::apsi {
@@ -156,7 +86,7 @@ namespace psi::apsi {
 class PirTest : public testing::TestWithParam<TestParams> {};
 
 TEST_P(PirTest, Works) {
-  SPDLOG_INFO("*******************pri test begin *********************");
+  SPDLOG_INFO("*******************pir test begin *********************");
   auto params = GetParam();
   auto ctxs = yacl::link::test::SetupWorld(2);
   ::apsi::PSIParams psi_params = GetPsiParams(params.nr, params.ns);
@@ -178,9 +108,31 @@ TEST_P(PirTest, Works) {
     }
   });
 
-  std::string client_csv_path = fmt::format("{}/client.csv", tmp_store_path);
-  std::string server_csv_path = fmt::format("{}/server.csv", tmp_store_path);
-  std::string id_cloumn_name = "id";
+  std::string client_csv_path ="examples/pir/data/client.csv";
+  //std::string server_csv_path = "examples/pir/data/server.csv";
+
+// pg
+  const std::string& server_csv_path = "{\n"
+                             "  \"connection_str\": \"DRIVER=PostgreSQL Unicode;DATABASE=postgres;SERVER=172.16.16.116;PORT=9876;UID=postgres;PWD=123456;\",\n"
+                             "  \"datasource_kind\": 3,\n"
+                             "  \"table_name\": \"test_person\"\n"
+                             "}";
+
+  // dm
+  //  const std::string& server_csv_path = "{\n"
+  //                            "  \"connection_str\": \"DSN=dm;SERVER=172.16.0.217;UID=SYSDBA;PWD=SYSDBA001;TCP_PORT=52360;\",\n"
+  //                            "  \"datasource_kind\": 3,\n"
+  //                            "  \"table_name\": \"CREDIT_ACTIVE000\"\n"
+  //                            "}";
+
+  // csv file
+  // const std::string& server_csv_path = "{\n"
+  //                            "  \"datasource_kind\": 5,\n"
+  //                            "  \"server_file_path\": \"examples/pir/data/server.csv\"\n"
+  //                            "}";
+  std::string pir_result_path = "examples/pir/data/pir_result.csv";
+  
+  std::string id_cloumn_name = "ID";
   std::string label_cloumn_name = "label";
 
   std::vector<size_t> intersection_idx;
@@ -188,23 +140,10 @@ TEST_P(PirTest, Works) {
 
   // generate test csv data
   {
-    std::vector<std::string> receiver_items =
-        GenerateData(yacl::crypto::FastRandU64(), params.nr);
-
-    std::vector<std::string> sender_keys;
-    std::vector<std::string> sender_labels;
-
-    std::tie(sender_keys, sender_labels) = GenerateSenderData(
-        yacl::crypto::FastRandU64(), params.ns, params.label_bytes - 4,
-        absl::MakeSpan(receiver_items), &intersection_idx, &intersection_label);
-
-    WriteCsvFile(client_csv_path, id_cloumn_name, receiver_items);
-    WriteCsvFile(server_csv_path, id_cloumn_name, label_cloumn_name,
-                 sender_keys, sender_labels);
     SPDLOG_WARN("**************************client_csv_data****************************");
     ReadCsvFile(client_csv_path);
-    SPDLOG_WARN("**************************server_csv_data****************************");
-    ReadCsvFile(server_csv_path);
+    // SPDLOG_WARN("**************************server_csv_data****************************");
+    // ReadCsvFile(server_csv_path);
   }
 
   // generate 32 bytes oprf_key
@@ -212,13 +151,14 @@ TEST_P(PirTest, Works) {
   WriteSecretKey(oprf_key_path);
 
   std::string setup_path = fmt::format("{}/setup_path", tmp_store_path);
-  std::string pir_result_path =
-      fmt::format("{}/pir_result.csv", tmp_store_path);
+  // std::string pir_result_path =
+  //     fmt::format("{}/pir_result.csv", tmp_store_path);
 
-  std::vector<std::string> ids = {id_cloumn_name};
-  std::vector<std::string> labels = {label_cloumn_name};
+  std::vector<std::string> ids = {"id", "name", "age"};
+  std::vector<std::string> labels = {"label"};
 
   if (params.use_filedb) {
+    SPDLOG_WARN("**********************data is ready, now to compute************************");
     ::psi::PirServerConfig config;
 
     config.set_input_path(server_csv_path);
@@ -305,6 +245,9 @@ TEST_P(PirTest, Works) {
   std::vector<std::string> pir_result_labels;
   std::tie(pir_result_ids, pir_result_labels) =
       pir_result_provider->ReadNextLabeledBatch();
+  
+  SPDLOG_WARN("**************************server_csv_data****************************");
+  ReadCsvFile(pir_result_path);
 
   for (auto id : pir_result_ids) {
     SPDLOG_WARN("pir result: id: {}", id);
@@ -321,8 +264,8 @@ TEST_P(PirTest, Works) {
 
 INSTANTIATE_TEST_SUITE_P(Works_Instances, PirTest,
                          testing::Values(                         //
-                             TestParams{1, 10, 32}         // 10-10K-32
-                            )  // 100-100K-32
+                             TestParams{1, 15, 64}         // 10-10K-32
+                             )  // 100-100K-32
 
 );
 
