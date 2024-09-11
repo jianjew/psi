@@ -19,13 +19,14 @@
 #include <sstream>
 #include <boost/algorithm/string/join.hpp>
 
-#include "rapidjson/document.h"
-#include "rapidjson/stringbuffer.h"
 #include "arrow/api.h"
-#include "arrow/compute/api.h"
 #include "arrow/array.h"
+#include "arrow/compute/api.h"
 #include "arrow/datum.h"
 #include "arrow/io/api.h"
+#include "rapidjson/document.h"
+#include "rapidjson/stringbuffer.h"
+#include "spdlog/spdlog.h"
 
 
 namespace psi {
@@ -60,6 +61,10 @@ DatasourceOperate::DatasourceOperate(const PirServerConfig &config) {
   assert(d.IsObject());
   assert(d.HasMember("datasource_kind"));
   datasource_kind_ = (psi::DataSourceKind)d["datasource_kind"].GetInt();
+  if (datasource_kind_ == psi::DataSourceKind::ODBC) {
+    assert(d.HasMember("datasource_kind_sub"));
+    datasource_kind_sub_ = (psi::DataSourceKindSub)d["datasource_kind_sub"].GetInt();
+  }
   // 文件类型 
   if (datasource_kind_ == psi::DataSourceKind::CSVDB) {
       assert(d.HasMember("server_file_path"));
@@ -94,7 +99,7 @@ size_t DatasourceOperate::CountDataContentNums() {
     case DataSourceKind::POSTGRESQL:
     case DataSourceKind::ODBC:
       std::string query = "SELECT COUNT(*) FROM " + table_name_ + ";";
-      std::cout << query << std::endl;
+      SPDLOG_INFO("select count string:{}", query);
       try {
             auto query_result = adaptor_->ExecQuery(query);
             assert(query_result.size() == 1);
@@ -103,7 +108,7 @@ size_t DatasourceOperate::CountDataContentNums() {
             std::stringstream sstream(num->ToString());
             sstream >> count;
       } catch (const std::exception& e) {
-            std::cout << "捕获到异常: " << e.what() << std::endl;
+          YACL_THROW("CountDataContentNums Error: {}", e.what());
       }
       break;
   
@@ -111,8 +116,8 @@ size_t DatasourceOperate::CountDataContentNums() {
   return count;
 }
 
-std::pair<std::vector<std::string>, std::vector<std::string>> DatasourceOperate::GetDatasouceBatchContent() {
-  std::cout << "GetDatasouceBatchContent: " << std::endl;
+std::pair<std::vector<std::string>, std::vector<std::string>> DatasourceOperate::GetDatasouceBatchContent(size_t current_patch, size_t batch_size) {
+  SPDLOG_INFO("GetDatasouceBatchContent enter, current_patch: {}, batch_size: {}", current_patch, batch_size);
   std::pair<std::vector<std::string>, std::vector<std::string>> data_batch_content;
   switch(datasource_kind_) {
     case DataSourceKind::CSVDB:
@@ -121,41 +126,53 @@ std::pair<std::vector<std::string>, std::vector<std::string>> DatasourceOperate:
     case DataSourceKind::MYSQL:
     case DataSourceKind::POSTGRESQL:
     case DataSourceKind::ODBC:
-      data_batch_content = GetTableBatchContent();
+      data_batch_content = GetTableBatchContent(current_patch, batch_size);
       break;
-
   }
   return data_batch_content;
 }
 
-std::pair<std::vector<std::string>, std::vector<std::string>> DatasourceOperate::GetTableBatchContent() {
+std::pair<std::vector<std::string>, std::vector<std::string>> DatasourceOperate::GetTableBatchContent(size_t current_patch, size_t batch_size) {
+  
   std::vector<std::string> read_keys;
   std::vector<std::string> read_labels;
   std::vector<std::string> select_query(key_columns_.begin(), key_columns_.end());
   select_query.insert(select_query.end(), label_columns_.begin(), label_columns_.end());
   auto query_join = boost::algorithm::join(select_query, ",");
-  std::string query = "SELECT " + query_join + " FROM " + table_name_ + ";";
-  std::cout << query << std::endl;
+  std::string query;
+  switch(datasource_kind_) {
+    case DataSourceKind::MYSQL:
+      query = "SELECT " + query_join + " FROM " + table_name_ + " LIMIT " + std::to_string(current_patch * batch_size) + ", " + std::to_string(batch_size) + ";";
+      break;
+    case DataSourceKind::POSTGRESQL:
+      query = "SELECT " + query_join + " FROM " + table_name_ + " LIMIT " + std::to_string(batch_size) + " OFFSET " + std::to_string(current_patch * batch_size) + ";";
+      break;
+    case DataSourceKind::ODBC:
+      switch (datasource_kind_sub_) {
+        case DataSourceKindSub::POSTGRESQL_ODBC:
+          query = "SELECT " + query_join + " FROM " + table_name_ + " LIMIT " + std::to_string(batch_size) + " OFFSET " + std::to_string(current_patch * batch_size) + ";";
+          break;
+        case DataSourceKindSub::DAMENG_ODBC:
+          query = "SELECT " + query_join + " FROM " + table_name_ + " LIMIT " + std::to_string(current_patch * batch_size) + ", " + std::to_string(batch_size) + ";";
+          break;
+        default:
+          YACL_THROW("unsupported datasource kind sub.");
+      }
+      break;
+    default:
+          YACL_THROW("unsupported datasource kind.");
+  }
+  SPDLOG_INFO("select items string:{}", query);
   try {
         auto query_result = adaptor_->ExecQuery(query);
         size_t num_rows = query_result[0]->Length();
-        std::cout << "batch num_rows: " << num_rows << std::endl;
+        SPDLOG_INFO("batch num_rows: {}, key_columns_ size: {}", num_rows, key_columns_.size());
         std::vector<std::shared_ptr<arrow::StringArray>> arrays;
         arrays.clear();
         for (int i = 0; i < query_result.size(); i++) {
             std::shared_ptr<arrow::ChunkedArray> chunked_array = query_result[i]->ToArrowChunkedArray();
             arrays.emplace_back(std::static_pointer_cast<arrow::StringArray>(chunked_array->chunk(0)));
         }
-
-        // for (auto arry : arrays) {
-        //   std::cout << "arry: " << arry->ToString() << std::endl;
-        // }
-        // std::cout << "arrays[i]->Value(idx_in_batch): " << arrays[0]->GetScalar(2).ValueOrDie()->ToString() << std::endl;
-        // std::cout << "arrays[i]->Value(idx_in_batch): " << arrays[2]->GetScalar(2).ValueOrDie()->ToString() << std::endl;
-        // std::cout << "arrays[i]->Value(idx_in_batch): " << arrays[1]->GetScalar(2).MoveValueUnsafe()->ToString() << std::endl;
-        // //std::cout << "arrays[i]->Value(idx_in_batch): " << arrays[1]->View(2) << std::endl;
-        
-        std::cout << "key_columns_ size: " << key_columns_.size() << std::endl;
         for (int64_t idx_in_batch = 0; idx_in_batch < num_rows; idx_in_batch++) {
           {
             std::vector<std::string> values;
@@ -195,7 +212,7 @@ std::pair<std::vector<std::string>, std::vector<std::string>> DatasourceOperate:
         return std::make_pair(read_keys, read_labels);
       
   } catch (const std::exception& e) {
-        std::cout << "捕获到异常: " << e.what() << std::endl;
+      YACL_THROW("GetTableBatchContent Error: {}", e.what());
   }
   
 }

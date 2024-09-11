@@ -35,10 +35,10 @@ class DatasourceOperate {
 
   size_t CountDataContentNums();
 
-  std::pair<std::vector<std::string>, std::vector<std::string>> GetDatasouceBatchContent();
+  std::pair<std::vector<std::string>, std::vector<std::string>> GetDatasouceBatchContent(size_t current_patch, size_t batch_size);
 
  private:
-  std::pair<std::vector<std::string>, std::vector<std::string>> GetTableBatchContent();
+  std::pair<std::vector<std::string>, std::vector<std::string>> GetTableBatchContent(size_t current_patch, size_t batch_size);
 
  private:
   std::string connection_str_;

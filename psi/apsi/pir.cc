@@ -215,10 +215,9 @@ PirResultReport PirServerSetup(const PirServerConfig &config) {
                        config.label_columns().end());
 
   // add by jianjew
-  std::cout << "*****PirServerSetup 0*****" << std::endl;
   auto datasource_operate = std::make_shared<DatasourceOperate>(config);
   size_t server_data_count = datasource_operate->CountDataContentNums();
-  std::cout << "server_data_count: " << server_data_count << std::endl;
+  SPDLOG_INFO("erver_data_count:{}", server_data_count);
   //size_t server_data_count = CsvFileDataCount(config.input_path(), key_columns);  // todo 修改点 在这里解析json
   size_t count_per_query = config.apsi_server_config().num_per_query();
 
@@ -260,11 +259,9 @@ PirResultReport PirServerSetup(const PirServerConfig &config) {
                 label_byte_count, label_columns, psi_params, bucket_count,
                 config.apsi_server_config().oprf_key_path(),
                 config.bucket_size(), config.apsi_server_config().compressed());
-  std::cout << "*****PirServerSetup 2 *****" << std::endl;
   // std::shared_ptr<::psi::ILabeledBatchProvider> batch_provider =
   //     std::make_shared<::psi::ArrowCsvBatchProvider>(
   //         config.input_path(), key_columns, bucket_size, label_columns);
-  std::cout << "*****PirServerSetup 3 *****" << std::endl;
   for (size_t i = 0; i < bucket_count; i++) {
     std::string bucket_setup_path =
         fmt::format("{}/bucket_{}", kv_store_path, i);
@@ -273,21 +270,19 @@ PirResultReport PirServerSetup(const PirServerConfig &config) {
 
     std::vector<std::string> batch_ids;
     std::vector<std::string> batch_labels;
-    std::tie(batch_ids, batch_labels) = datasource_operate->GetDatasouceBatchContent();
+    std::tie(batch_ids, batch_labels) = datasource_operate->GetDatasouceBatchContent(i, bucket_size);
     if (batch_ids.empty()) {
       SPDLOG_INFO("Finish read data");
       break;
     }
 
-    for (auto& id : batch_ids) {
-      std::cout << "batch id: " << id << std::endl;
-    }
-    for (auto& id : batch_labels) {
-      std::cout << "batch_labels id: " << id << std::endl;
-    }
+    // for (auto& id : batch_ids) {
+    //   std::cout << "batch id: " << id << std::endl;
+    // }
+    // for (auto& id : batch_labels) {
+    //   std::cout << "batch_labels id: " << id << std::endl;
+    // }
 
-
-    std::cout << "*****PirServerSetup 4 *****" << std::endl;
     std::filesystem::create_directory(bucket_setup_path);
 
     ::apsi::PSIParams bucket_psi_params = GetPsiParams(
