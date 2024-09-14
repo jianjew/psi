@@ -26,6 +26,7 @@
 #include "psi/utils/advanced_join.h"
 #include "psi/utils/index_store.h"
 #include "psi/utils/recovery.h"
+#include "psi_datasource_operate.h"
 
 #include "psi/proto/psi_v2.pb.h"
 
@@ -105,6 +106,8 @@ class AbstractPsiParty {
   std::string key_hash_digest_;
 
   std::shared_ptr<AdvancedJoinConfig> advanced_join_config_;
+  // add by jianjew
+  std::shared_ptr<PsiDatasourceOperate> psi_datasource_operate_;
 
  private:
   void CheckPeerConfig();

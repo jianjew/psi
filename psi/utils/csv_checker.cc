@@ -156,6 +156,10 @@ CsvChecker::CsvChecker(const std::string& csv_path,
 CheckCsvReport CheckCsv(const std::string& input_file_path,
                         const std::vector<std::string>& keys,
                         bool check_duplicates, bool generate_key_hash_digest) {
+  SPDLOG_INFO("###CheckCsv, input_file_path: {}", input_file_path);
+  for (auto& key : keys) {
+    SPDLOG_INFO("###CheckCsv, has key: {}", key);
+  }
   CheckCsvReport report;
 
   boost::uuids::random_generator uuid_generator;
@@ -289,7 +293,6 @@ CheckCsvReport CheckCsv(const std::string& input_file_path,
 
     report.key_hash_digest = hash_digest;
   }
-
   return report;
 }
 

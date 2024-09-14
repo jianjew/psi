@@ -39,6 +39,7 @@ psi_cc_library(
         "//psi/utils:advanced_join",
         "//psi/utils:index_store",
         "//psi/utils:recovery",
+        ":psi_datasource_operate",
         "@boost//:uuid",
         "@com_github_google_perfetto//:perfetto",
         "@com_google_absl//absl/status",
@@ -135,5 +136,34 @@ psi_cc_binary(
         "//psi:launch",
         "//psi/proto:entry_cc_proto",
         "@com_github_gflags_gflags//:gflags",
+    ],
+)
+
+cc_library(
+    name = "psi_datasource_operate",
+    srcs = ["psi_datasource_operate.cc"],
+    hdrs = ["psi_datasource_operate.h"],
+    deps = [
+        "//psi/datasource:datasource_adaptor_mgr",
+        "//psi/datasource:datasource_base",
+        "//psi/utils:arrow_csv_batch_provider",
+        "//psi/utils:csv_checker",
+        "//psi/utils:hash_bucket_cache",
+        "//psi/proto:psi_v2_cc_proto",
+        "//psi/legacy:bucket_psi",
+        "@org_apache_arrow//:arrow",
+        "//psi/utils:key",
+        "@com_github_tencent_rapidjson//:rapidjson",
+    ],
+)
+
+psi_cc_test(
+    name = "psi_datasource_test",
+    srcs = ["psi_datasource_test.cc"],
+    deps = [
+        ":factory",
+        "//psi/utils:arrow_csv_batch_provider",
+        "@boost//:uuid",
+        "@yacl//yacl/utils:scope_guard",
     ],
 )

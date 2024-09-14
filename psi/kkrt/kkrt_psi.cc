@@ -116,7 +116,6 @@ void KkrtPsiSend(const std::shared_ptr<yacl::link::Context>& link_ctx,
                "now only support cuckoo HashNum = 3 , stash size = 0");
   YACL_ENFORCE(ot_recv.Size() == 512,
                "now only support baseRecvOption block size 512");
-
   size_t self_size = items_hash.size();
   size_t peer_size = ExchangeSetSize(link_ctx, self_size);
   YACL_ENFORCE((peer_size > 0) && (self_size > 0),

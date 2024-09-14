@@ -110,10 +110,12 @@ message ProtocolConfig {
 
 // TODO(junfeng): support more io types including oss, sql, etc.
 enum IoType {
-  IO_TYPE_UNSPECIFIED = 0;
+  IO_TYPE_UNSPECIFIED = 0;   // todo by jianjew
 
   // Local csv file.
   IO_TYPE_FILE_CSV = 1;
+
+  IO_TYPE_SQL = 2;
 }
 
 // IO configuration.

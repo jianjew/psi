@@ -77,6 +77,12 @@ std::unique_ptr<HashBucketCache> CreateCacheFromCsv(
     const std::string& csv_path, const std::vector<std::string>& schema_names,
     const std::string& cache_dir, uint32_t bucket_num, uint32_t read_batch_size,
     bool use_scoped_tmp_dir) {
+    SPDLOG_INFO("###CreateCacheFromCsv, csv_path: {}, cache_dir: {}, bucket_num: {}, read_batch_size: {}, use_scoped_tmp_dir: {}",
+                           csv_path, cache_dir, bucket_num, read_batch_size, use_scoped_tmp_dir);
+    for (auto& schema: schema_names) {
+      SPDLOG_INFO("###CreateCacheFromCsv, schema: {}", schema);
+    }
+  
   auto bucket_cache = std::make_unique<HashBucketCache>(cache_dir, bucket_num,
                                                         use_scoped_tmp_dir);
 
@@ -89,6 +95,7 @@ std::unique_ptr<HashBucketCache> CreateCacheFromCsv(
     }
     for (const auto& it : items) {
       bucket_cache->WriteItem(it);
+      SPDLOG_INFO("###CreateCacheFromCsv, it: {}", it);
     }
   }
   bucket_cache->Flush();

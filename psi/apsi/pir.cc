@@ -276,13 +276,6 @@ PirResultReport PirServerSetup(const PirServerConfig &config) {
       break;
     }
 
-    // for (auto& id : batch_ids) {
-    //   std::cout << "batch id: " << id << std::endl;
-    // }
-    // for (auto& id : batch_labels) {
-    //   std::cout << "batch_labels id: " << id << std::endl;
-    // }
-
     std::filesystem::create_directory(bucket_setup_path);
 
     ::apsi::PSIParams bucket_psi_params = GetPsiParams(

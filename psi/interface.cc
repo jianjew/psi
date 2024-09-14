@@ -71,7 +71,10 @@ AbstractPsiParty::AbstractPsiParty(const v2::PsiConfig &config, v2::Role role,
     : config_(config),
       role_(role),
       selected_keys_(config_.keys().begin(), config_.keys().end()),
-      lctx_(std::move(lctx)) {}
+      lctx_(std::move(lctx)) {
+        // add by jianjew
+        psi_datasource_operate_ = std::make_shared<PsiDatasourceOperate>(config);
+      }
 
 void AbstractPsiParty::Init() {
   TRACE_EVENT("init", "AbstractPsiParty::Init");
@@ -101,9 +104,12 @@ void AbstractPsiParty::Init() {
     }
 
     config_.mutable_input_config()->set_path(
-        advanced_join_config_->unique_input_keys_cnt_path);
+        advanced_join_config_->unique_input_keys_cnt_path);  // todo by jianjew 这里为啥要重写路径  
     config_.mutable_output_config()->set_path(
         advanced_join_config_->self_intersection_cnt_path);
+    
+    SPDLOG_INFO("[AbstractPsiParty::Init], new input path: {}", advanced_join_config_->unique_input_keys_cnt_path);
+    SPDLOG_INFO("[AbstractPsiParty::Init], new output path: {}", advanced_join_config_->self_intersection_cnt_path);
 
     auto advanced_join_preprocess_f = std::async(
         [&] { AdvancedJoinPreprocess(advanced_join_config_.get()); });
@@ -135,13 +141,18 @@ void AbstractPsiParty::Init() {
         config_.protocol_config().protocol() != v2::PROTOCOL_ECDH) {
       SPDLOG_INFO("[AbstractPsiParty::Init][Check csv pre-process] start");
 
-      check_csv_report =
-          CheckCsv(config_.input_config().path(), selected_keys_,
-                   check_duplicates, config_.check_hash_digest());
+      // check_csv_report =
+      //     CheckCsv(config_.input_config().path(), selected_keys_,
+      //              check_duplicates, config_.check_hash_digest());   // todo by jianjew
 
+      // add by jianjew
+      check_csv_report = psi_datasource_operate_->CheckDatasource();
+      SPDLOG_INFO("###AbstractPsiParty::Init, num_rows: {}, key_hash_digest: {}, duplicates_keys_file_path: {}", 
+        check_csv_report.num_rows, check_csv_report.key_hash_digest, check_csv_report.duplicates_keys_file_path);
+      
       key_hash_digest_ = check_csv_report.key_hash_digest;
       report_.set_original_count(check_csv_report.num_rows);
-
+      
       SPDLOG_INFO("[AbstractPsiParty::Init][Check csv pre-process] end");
     }
   });
@@ -207,9 +218,9 @@ PsiResultReport AbstractPsiParty::Finalize() {
 
     if (role_ == v2::ROLE_RECEIVER ||
         config_.protocol_config().broadcast_result()) {
-      report_.set_intersection_count(GenerateResult(
-          config_.input_config().path(), config_.output_config().path(),
-          selected_keys_, sorted_intersection_indices_path, sort_output,
+      report_.set_intersection_count(psi_datasource_operate_->PsiGenerateResult(  // add by jianjew
+          config_.output_config().path(),
+          sorted_intersection_indices_path, sort_output,
           digest_equal_, false));
     }
   });
@@ -243,8 +254,8 @@ PsiResultReport AbstractPsiParty::Finalize() {
   // remove result indices records.
   if (!recovery_manager_) {
     std::error_code ec;
-    std::filesystem::remove(sorted_intersection_indices_path, ec);
-    std::filesystem::remove(intersection_indices_writer_->path(), ec);
+    // std::filesystem::remove(sorted_intersection_indices_path, ec);
+    // std::filesystem::remove(intersection_indices_writer_->path(), ec);
   }
 
   SPDLOG_INFO("[AbstractPsiParty::Finalize] end");
@@ -263,8 +274,8 @@ void AbstractPsiParty::CheckSelfConfig() {
     YACL_THROW("Role doesn't match.");
   }
 
-  if (config_.input_config().type() != v2::IO_TYPE_FILE_CSV) {
-    YACL_THROW("Input type only supports IO_TYPE_FILE_CSV at this moment.");
+  if (config_.input_config().type() != v2::IO_TYPE_FILE_CSV && config_.input_config().type() != v2::IO_TYPE_SQL) {
+    YACL_THROW("Input type only supports IO_TYPE_FILE_CSV and IO_TYPE_SQL at this moment.");
   }
 
   if (config_.output_config().type() != v2::IO_TYPE_FILE_CSV) {

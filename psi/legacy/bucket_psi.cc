@@ -190,6 +190,8 @@ size_t FilterFileByIndices(const std::string& input, const std::string& output,
 size_t FilterFileByIndices(const std::string& input, const std::string& output,
                            const std::filesystem::path& indices,
                            bool output_difference, size_t header_line_count) {
+  SPDLOG_INFO("###FilterFileByIndices:input: {}, output: {}, indices: {}, output_difference: {}, header_line_count: {}", input,output,indices.string(),
+              output_difference, header_line_count);
   auto in = io::BuildInputStream(io::FileIoOptions(input));
   auto out = io::BuildOutputStream(io::FileIoOptions(output));
 
@@ -201,6 +203,7 @@ size_t FilterFileByIndices(const std::string& input, const std::string& output,
   std::optional<uint64_t> intersection_index = reader.GetNext();
 
   while (in->GetLine(&line)) {
+    SPDLOG_INFO("###FilterFileByIndices:line: {}, indx: {}", line, idx);
     if (idx < header_line_count) {
       out->Write(line);
       out->Write("\n");
@@ -214,6 +217,7 @@ size_t FilterFileByIndices(const std::string& input, const std::string& output,
       if ((intersection_index.has_value() &&
            intersection_index.value() == idx - header_line_count) !=
           output_difference) {
+        SPDLOG_INFO("###FilterFileByIndices: add line: {}, indx: {}", line, idx);
         out->Write(line);
         out->Write("\n");
         actual_count++;
