@@ -58,14 +58,19 @@ void Rr22PsiSender::PreProcess() {
 
     auto gen_input_bucket_f = std::async([&] {
       if (recovery_manager_) {
-        input_bucket_store_ = CreateCacheFromCsv(
-            config_.input_config().path(), keys,
-            recovery_manager_->input_bucket_store_path(), bucket_count_);
+        // input_bucket_store_ = CreateCacheFromCsv(
+        //     config_.input_config().path(), keys,
+        //     recovery_manager_->input_bucket_store_path(), bucket_count_);
+        
+        // add by jianjew
+        input_bucket_store_ = psi_datasource_operate_->GetDatasouceBatchContent(recovery_manager_->input_bucket_store_path(), bucket_count_);
       } else {
-        input_bucket_store_ = CreateCacheFromCsv(
-            config_.input_config().path(), keys,
-            std::filesystem::path(config_.input_config().path()).parent_path(),
-            bucket_count_);
+        // input_bucket_store_ = CreateCacheFromCsv(
+        //     config_.input_config().path(), keys,
+        //     std::filesystem::path(config_.input_config().path()).parent_path(),
+        //     bucket_count_);
+        // add by jianjew
+        input_bucket_store_ = psi_datasource_operate_->GetDatasouceBatchContent("", bucket_count_);
       }
     });
 
