@@ -63,8 +63,7 @@ PsiDatasourceOperate::PsiDatasourceOperate(const v2::PsiConfig& config) {
   if (datasource_kind_ == psi::DataSourceKind::CSVDB) {
       assert(d.HasMember("server_file_path"));
       server_file_path_ = d["server_file_path"].GetString();
-      // csv_batch_provider_ = std::make_shared<::psi::ArrowCsvBatchProvider>(
-      //     server_file_path_, key_columns_, bucket_size_, label_columns_);
+      csv_batch_provider_ = std::make_shared<::psi::ArrowCsvBatchProvider>(server_file_path_, key_columns_);
   }
   // 数据库类型 
   if (datasource_kind_ == psi::DataSourceKind::MYSQL || datasource_kind_ == psi::DataSourceKind::POSTGRESQL || datasource_kind_ == psi::DataSourceKind::ODBC) {
@@ -134,35 +133,10 @@ std::unique_ptr<HashBucketCache> PsiDatasourceOperate::GetTableContent(const std
     bool use_scoped_tmp_dir) {
   SPDLOG_INFO("###CreateCacheFromCsv, cache_dir: {}, bucket_num: {}, read_batch_size: {}, use_scoped_tmp_dir: {}",
     cache_dir, bucket_num, read_batch_size, use_scoped_tmp_dir);
-  for (auto& schema: key_columns_) {
-    SPDLOG_INFO("###CreateCacheFromCsv, schema: {}", schema);
-  }
   auto bucket_cache = std::make_unique<HashBucketCache>(cache_dir, bucket_num, use_scoped_tmp_dir);
   std::vector<std::string> select_query(key_columns_.begin(), key_columns_.end());
   auto query_join = boost::algorithm::join(select_query, ",");
-  std::string query;
-  switch(datasource_kind_) {
-    case DataSourceKind::MYSQL:
-      query = "SELECT " + query_join + " FROM " + table_name_ + ";";
-      break;
-    case DataSourceKind::POSTGRESQL:
-      query = "SELECT " + query_join + " FROM " + table_name_ + ";";
-      break;
-    case DataSourceKind::ODBC:
-      switch (datasource_kind_sub_) {
-        case DataSourceKindSub::POSTGRESQL_ODBC:
-          query = "SELECT " + query_join + " FROM " + table_name_ + ";";
-          break;
-        case DataSourceKindSub::DAMENG_ODBC:
-          query = "SELECT " + query_join + " FROM " + table_name_ + ";";
-          break;
-        default:
-          YACL_THROW("unsupported datasource kind sub.");
-      }
-      break;
-    default:
-          YACL_THROW("unsupported datasource kind.");
-  }
+  std::string query = "SELECT " + query_join + " FROM " + table_name_ + ";";
   SPDLOG_INFO("select items string:{}", query);
   try {
     auto query_result = adaptor_->ExecQuery(query);
@@ -249,12 +223,9 @@ size_t PsiDatasourceOperate::GenerateResultInner(const std::string& output_path,
   SPDLOG_INFO("###GenerateResultInner:cnt: {}", cnt);
 
   if (sort_output && !digest_equal) {
-    SPDLOG_INFO("###GenerateResultInner:cnt 00000");
     MultiKeySort(tmp_sort_in_file, tmp_sort_out_file, key_columns_);
-    SPDLOG_INFO("###GenerateResultInner:cnt 11111");
     std::filesystem::rename(tmp_sort_out_file, output_path);
   } else {
-    SPDLOG_INFO("###GenerateResultInner:cnt 22222");
     std::filesystem::rename(tmp_sort_in_file, output_path);
   }
 
@@ -314,7 +285,7 @@ size_t PsiDatasourceOperate::FilterFileByIndicesInner(const std::string& output,
       }
     }
     auto culumn_name_values_join = boost::algorithm::join(culumn_name_values, ",");
-    SPDLOG_INFO("###culumn_name_values_join: {}", culumn_name_values_join);
+    // SPDLOG_INFO("###culumn_name_values_join: {}", culumn_name_values_join);
     out->Write(culumn_name_values_join);
     out->Write("\n");
 
@@ -346,7 +317,7 @@ size_t PsiDatasourceOperate::FilterFileByIndicesInner(const std::string& output,
         auto str_join = boost::algorithm::join(values, ",");
         
         // step2: select by index
-        SPDLOG_INFO("###FilterFileByIndicesInner:str_join: {}, indx: {}", str_join, idx);
+        // SPDLOG_INFO("###FilterFileByIndicesInner:str_join: {}, indx: {}", str_join, idx);
         if (!output_difference) {
           if (!intersection_index.has_value()) {
             break;
@@ -380,6 +351,183 @@ size_t PsiDatasourceOperate::FilterFileByIndicesInner(const std::string& output,
   out->Close();
 
   return reader.read_cnt();
+}
+
+void PsiDatasourceOperate::RunEcdhPsiDatasource(struct psi::ecdh::EcdhPsiOptions& options, std::shared_ptr<HashBucketEcPointStore> self_ec_point_store,
+   std::shared_ptr<HashBucketEcPointStore> peer_ec_point_store) {
+  SPDLOG_INFO("###RunEcdhPsiDatasource enter");
+  std::shared_ptr<::psi::ArrowCsvBatchProvider> csv_ptr = NULL;
+  switch(datasource_kind_) {
+    case DataSourceKind::CSVDB:
+      csv_ptr = std::dynamic_pointer_cast<::psi::ArrowCsvBatchProvider>(csv_batch_provider_);
+      psi::ecdh::RunEcdhPsi(options, csv_ptr, self_ec_point_store, peer_ec_point_store);
+      break;
+    case DataSourceKind::MYSQL:
+    case DataSourceKind::POSTGRESQL:
+    case DataSourceKind::ODBC:
+      RunEcdhPsiInner(options, self_ec_point_store, peer_ec_point_store);
+      break;
+  }
+}
+
+size_t PsiDatasourceOperate::GetEcdhPsiDataSize() {
+  SPDLOG_INFO("###GetEcdhPsiDataSize enter");
+  size_t data_count = 0;
+  std::shared_ptr<::psi::ArrowCsvBatchProvider> csv_ptr = NULL;
+  switch(datasource_kind_) {
+    case DataSourceKind::CSVDB:
+      csv_ptr = std::dynamic_pointer_cast<::psi::ArrowCsvBatchProvider>(csv_batch_provider_);
+      data_count = csv_ptr->row_cnt();
+      break;
+    case DataSourceKind::MYSQL:
+    case DataSourceKind::POSTGRESQL:
+    case DataSourceKind::ODBC:
+      data_count = CheckDatasource().num_rows;
+      break;
+  }
+  SPDLOG_INFO("###GetEcdhPsiDataSize datasize: {}", data_count);
+  return data_count;
+}
+
+void PsiDatasourceOperate::RunEcdhPsiInner(struct psi::ecdh::EcdhPsiOptions& options,
+                const std::shared_ptr<IEcPointStore>& self_ec_point_store,
+                const std::shared_ptr<IEcPointStore>& peer_ec_point_store) {
+  YACL_ENFORCE(options.link_ctx->WorldSize() == 2);
+  YACL_ENFORCE(self_ec_point_store != nullptr && peer_ec_point_store != nullptr);
+
+  psi::ecdh::EcdhPsiContext handler(options);
+  handler.CheckConfig();
+
+  uint64_t processed_item_cnt = 0;
+  if (options.recovery_manager) {
+    if (handler.SelfCanTouchResults() && handler.PeerCanTouchResults()) {
+      processed_item_cnt =
+          std::min(options.recovery_manager->ecdh_dual_masked_cnt_from_peer(),
+                   options.recovery_manager->checkpoint()
+                       .ecdh_dual_masked_item_self_count());
+    } else if (handler.SelfCanTouchResults() &&
+               !handler.PeerCanTouchResults()) {
+      processed_item_cnt = options.recovery_manager->checkpoint()
+                               .ecdh_dual_masked_item_self_count();
+    } else {
+      processed_item_cnt =
+          options.recovery_manager->ecdh_dual_masked_cnt_from_peer();
+    }
+
+    SPDLOG_INFO("processed_item_cnt = {}", processed_item_cnt);
+  }
+  SPDLOG_INFO("processed_item_cnt1 = {}", processed_item_cnt);
+
+  std::future<void> f_mask_self = std::async([&] {
+    std::vector<std::string> select_query(key_columns_.begin(), key_columns_.end());
+    auto query_join = boost::algorithm::join(select_query, ",");
+    std::string query;
+    switch(datasource_kind_) {
+      case DataSourceKind::MYSQL:
+        query = "SELECT " + query_join + " FROM " + table_name_ + ";";
+        break;
+      case DataSourceKind::POSTGRESQL:
+        query = "SELECT " + query_join + " FROM " + table_name_ + ";";
+        break;
+      case DataSourceKind::ODBC:
+        switch (datasource_kind_sub_) {
+          case DataSourceKindSub::POSTGRESQL_ODBC:
+            query = "SELECT " + query_join + " FROM " + table_name_ + ";";
+            break;
+          case DataSourceKindSub::DAMENG_ODBC:
+            query = "SELECT " + query_join + " FROM " + table_name_ + ";";
+            break;
+          default:
+            YACL_THROW("unsupported datasource kind sub.");
+        }
+        break;
+      default:
+            YACL_THROW("unsupported datasource kind.");
+    }
+    SPDLOG_INFO("select items string:{}", query);
+    std::vector<std::string> batch_items;
+    try {
+      auto query_result = adaptor_->ExecQuery(query);
+      size_t num_rows = query_result[0]->Length();
+      SPDLOG_INFO("batch num_rows: {}, key_columns_ size: {}", num_rows, key_columns_.size());
+      std::vector<std::shared_ptr<arrow::StringArray>> arrays;
+      arrays.clear();
+      for (int i = 0; i < query_result.size(); i++) {
+          std::shared_ptr<arrow::ChunkedArray> chunked_array = query_result[i]->ToArrowChunkedArray();
+          arrays.emplace_back(std::static_pointer_cast<arrow::StringArray>(chunked_array->chunk(0)));
+      }
+      for (int64_t idx_in_batch = 0; idx_in_batch < num_rows; idx_in_batch++) {
+        {
+          std::vector<std::string> values;
+          for (size_t i = 0; i < key_columns_.size(); i++) {
+            if (arrays[i]->type()->id() == arrow::Type::STRING || arrays[i]->type()->id() == arrow::Type::LARGE_STRING) {
+              std::string tmp_str = arrays[i]->GetScalar(idx_in_batch).ValueOrDie()->ToString();
+              int start_idx = tmp_str.find_first_of('"') + 1;
+              int end_idx = tmp_str.find_last_of('"');
+              tmp_str = tmp_str.substr(start_idx, end_idx - start_idx);
+              values.emplace_back(tmp_str);
+            } else {
+              values.emplace_back(arrays[i]->GetScalar(idx_in_batch).ValueOrDie()->ToString());
+            }
+          }
+          auto item = boost::algorithm::join(values, ",");
+          // SPDLOG_INFO("###RunEcdhPsiInner, item: {}", item);
+          batch_items.emplace_back(item);
+        }
+      }
+    } catch (const std::exception& e) {
+        YACL_THROW("GetTableBatchContent Error: {}", e.what());
+    }
+    handler.MaskSelfDatasource(batch_items);  // fix by jianjew
+    SPDLOG_INFO("ID {}: MaskSelf finished.", handler.Id());
+  });
+  std::future<void> f_mask_peer = std::async([&] {
+    handler.MaskPeer(peer_ec_point_store);
+    SPDLOG_INFO("ID {}: MaskPeer finished.", handler.Id());
+  });
+  std::future<void> f_recv_peer = std::async([&] {
+    handler.RecvDualMaskedSelf(self_ec_point_store);
+    SPDLOG_INFO("ID {}: RecvDualMaskedSelf finished.", handler.Id());
+  });
+
+  // Wait for end of logic flows or exceptions.
+  // Note: exception_ptr is `shared_ptr` style, hence could be used to prolong
+  // the lifetime of pointed exceptions.
+  std::exception_ptr mask_self_exptr = nullptr;
+  std::exception_ptr mask_peer_exptr = nullptr;
+  std::exception_ptr recv_peer_exptr = nullptr;
+
+  try {
+    f_mask_self.get();
+  } catch (const std::exception& e) {
+    mask_self_exptr = std::current_exception();
+    SPDLOG_ERROR("ID {}: Error in MaskSelf: {}", handler.Id(), e.what());
+  }
+
+  try {
+    f_mask_peer.get();
+  } catch (const std::exception& e) {
+    mask_peer_exptr = std::current_exception();
+    SPDLOG_ERROR("ID {}: Error in MaskPeer: {}", handler.Id(), e.what());
+  }
+
+  try {
+    f_recv_peer.get();
+  } catch (const std::exception& e) {
+    recv_peer_exptr = std::current_exception();
+    SPDLOG_ERROR("ID {}: Error in RecvDualMaskedSelf: {}", handler.Id(),
+                 e.what());
+  }
+
+  if (mask_self_exptr) {
+    std::rethrow_exception(mask_self_exptr);
+  }
+  if (mask_peer_exptr) {
+    std::rethrow_exception(mask_peer_exptr);
+  }
+  if (recv_peer_exptr) {
+    std::rethrow_exception(recv_peer_exptr);
+  }
 }
 
 }  // namespace psi

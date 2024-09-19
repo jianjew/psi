@@ -93,6 +93,9 @@ class EcdhPsiContext {
   void MaskSelf(const std::shared_ptr<IBasicBatchProvider>& batch_provider,
                 uint64_t processed_item_cnt = 0);
 
+  // add by jianjew for datasource
+  void MaskSelfDatasource(std::vector<std::string>& batch_items);
+
   // one of main steps for 2 party ecdh psi
   // recv peer's masked items, then masked them again and send back
   // ec_point_store: available only when target_rank equal to self_rank

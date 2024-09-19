@@ -125,6 +125,57 @@ void EcdhPsiContext::MaskSelf(
   }
 }
 
+// add by jianjew 
+// 先发送数据包，最后再发送一个空包，告知peer已经结束，通过read_next_batch进行控制。
+void EcdhPsiContext::MaskSelfDatasource(std::vector<std::string>& items) {
+  size_t batch_count = 0;
+  size_t item_count = 0;
+  size_t chunk_size = 4096;
+  bool read_next_batch = true;
+
+  SPDLOG_INFO("###MaskSelfDatasource: items {}", items.size());
+  std::vector<std::string> batch_items;
+  while (true) {
+    // SPDLOG_INFO("MaskSelf:{}, batch_count={}", Id(),batch_count);
+    if (read_next_batch) {
+      batch_items.assign(items.begin() + item_count, (item_count + chunk_size) < items.size() ? items.begin() + item_count + chunk_size : items.end());
+    }
+  
+    std::vector<std::string> masked_items;
+    std::vector<std::string> hashed_masked_items;
+    if (read_next_batch) {
+      hashed_masked_items = HashInputs(options_.ecc_cryptor, batch_items);
+      masked_items = Mask(options_.ecc_cryptor, hashed_masked_items);
+    }
+    // Send x^a.
+    const auto tag = fmt::format("ECDHPSI:X^A:{}", batch_count);
+    SendBatch(masked_items, batch_count, tag);
+    if (!read_next_batch) {
+      SPDLOG_INFO("MaskSelf:{} --finished, batch_count={}, self_item_count={}",
+                  Id(), batch_count, item_count);
+      if (options_.statistics) {
+        options_.statistics->self_item_count = item_count;
+      }
+      break;
+    }
+
+    if (options_.ecdh_logger) {
+      options_.ecdh_logger->Log(EcdhStage::MaskSelf, options_.private_key,
+                                item_count, hashed_masked_items, masked_items);
+    }
+    item_count += chunk_size;
+    ++batch_count;
+
+    if (batch_count % kLogBatchInterval == 0) {
+      SPDLOG_INFO("MaskSelf:{}, batch_count={}, self_item_count={}", Id(),
+                  batch_count, item_count);
+    }
+    if ((item_count + chunk_size) >= items.size()) {  // 这里说明说明数据读取结束了
+      read_next_batch = false;
+    }
+  }
+}
+
 void EcdhPsiContext::MaskPeer(
     const std::shared_ptr<IEcPointStore>& peer_ec_point_store) {
   size_t batch_count = 0;
@@ -135,7 +186,6 @@ void EcdhPsiContext::MaskPeer(
     std::vector<std::string> dual_masked_peers;
     const auto tag = fmt::format("ECDHPSI:Y^B:{}", batch_count);
     RecvBatch(&peer_items, batch_count, tag);
-
     // Compute (y^b)^a.
     if (!peer_items.empty()) {
       // TODO: avoid mem copy
@@ -150,7 +200,6 @@ void EcdhPsiContext::MaskPeer(
         }
         dual_masked_peers.emplace_back(std::move(cipher));
       }
-
       if (SelfCanTouchResults()) {
         if (options_.recovery_manager) {
           peer_ec_point_store->Flush();
@@ -179,7 +228,6 @@ void EcdhPsiContext::MaskPeer(
     }
     item_count += peer_items.size();
     batch_count++;
-
     if (batch_count % kLogBatchInterval == 0) {
       SPDLOG_INFO("MaskPeer:{}, batch_count={}, peer_item_count={}", Id(),
                   batch_count, item_count);
@@ -359,6 +407,7 @@ void RunEcdhPsi(const EcdhPsiOptions& options,
 
     SPDLOG_INFO("processed_item_cnt = {}", processed_item_cnt);
   }
+  SPDLOG_INFO("processed_item_cnt1 = {}", processed_item_cnt);
 
   std::future<void> f_mask_self = std::async([&] {
     handler.MaskSelf(batch_provider, processed_item_cnt);

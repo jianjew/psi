@@ -23,12 +23,13 @@
 #include "psi/utils/csv_checker.h"
 #include "psi/utils/hash_bucket_cache.h"
 #include "psi/legacy/bucket_psi.h"
+#include "psi/utils/ec_point_store.h"
+#include "psi/ecdh/ecdh_psi.h"
 
 #include "psi/proto/psi_v2.pb.h"
 
 
 namespace psi {
-
 /**
  * Provide information on obtaining data sources in practical scenarios.
  * 
@@ -42,6 +43,11 @@ class PsiDatasourceOperate {
 
   std::unique_ptr<HashBucketCache> GetDatasouceBatchContent(std::string input_bucket_store_path, size_t bucket_count);
 
+  void RunEcdhPsiDatasource(struct psi::ecdh::EcdhPsiOptions& options, std::shared_ptr<HashBucketEcPointStore> self_ec_point_store,
+   std::shared_ptr<HashBucketEcPointStore> peer_ec_point_store);
+  
+  size_t GetEcdhPsiDataSize();
+
   size_t PsiGenerateResult(const std::string& output_path, std::filesystem::path indices, bool sort_output, bool digest_equal, bool output_difference = false);
 
  private:
@@ -51,9 +57,11 @@ class PsiDatasourceOperate {
   size_t GenerateResultInner(const std::string& output_path, const T& indices, bool sort_output, bool digest_equal, bool output_difference = false);
 
   size_t FilterFileByIndicesInner(const std::string& output, const std::filesystem::path& indices, bool output_difference);
+  
+  void RunEcdhPsiInner(struct psi::ecdh::EcdhPsiOptions& options, const std::shared_ptr<IEcPointStore>& self_ec_point_store,
+    const std::shared_ptr<IEcPointStore>& peer_ec_point_store);
 
  private:
-
   std::string connection_str_;
   DataSourceKind datasource_kind_;
   DataSourceKindSub datasource_kind_sub_;

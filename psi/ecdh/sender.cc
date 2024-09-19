@@ -71,8 +71,8 @@ void EcdhPsiSender::PreProcess() {
 
   psi_options_.ic_mode = false;
 
-  batch_provider_ = std::make_shared<ArrowCsvBatchProvider>(
-      config_.input_config().path(), selected_keys_);
+  // batch_provider_ = std::make_shared<ArrowCsvBatchProvider>(
+  //     config_.input_config().path(), selected_keys_);
 
   if (recovery_manager_) {
     self_ec_point_store_ = std::make_shared<HashBucketEcPointStore>(
@@ -105,14 +105,14 @@ void EcdhPsiSender::Online() {
 
   if (!online_stage_finished) {
     auto run_f = std::async([&] {
-      return RunEcdhPsi(psi_options_, batch_provider_, self_ec_point_store_,
+      return psi_datasource_operate_->RunEcdhPsiDatasource(psi_options_, self_ec_point_store_,
                         peer_ec_point_store_);
     });
 
     SyncWait(lctx_, &run_f);
   }
 
-  report_.set_original_count(batch_provider_->row_cnt());
+  report_.set_original_count(psi_datasource_operate_->GetEcdhPsiDataSize());
 
   if (recovery_manager_) {
     recovery_manager_->MarkOnlineEnd();

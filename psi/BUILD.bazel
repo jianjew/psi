@@ -151,6 +151,8 @@ cc_library(
         "//psi/utils:hash_bucket_cache",
         "//psi/proto:psi_v2_cc_proto",
         "//psi/legacy:bucket_psi",
+        "//psi/ecdh:ecdh_psi",
+        "//psi/utils:ec_point_store",
         "@org_apache_arrow//:arrow",
         "//psi/utils:key",
         "@com_github_tencent_rapidjson//:rapidjson",
