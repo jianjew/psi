@@ -176,7 +176,6 @@ std::unique_ptr<HashBucketCache> PsiDatasourceOperate::GetTableContent(const std
 }
 
 size_t PsiDatasourceOperate::PsiGenerateResult(const std::string& output_path, std::filesystem::path indices, bool sort_output, bool digest_equal, bool output_difference) {
-  SPDLOG_INFO("###GenerateResult enter, sort_output: {}, indices: {}, digest_equal: {}", sort_output, indices.string(), digest_equal);
   size_t count = 0;
   switch(datasource_kind_) {
     case DataSourceKind::CSVDB:
@@ -413,37 +412,13 @@ void PsiDatasourceOperate::RunEcdhPsiInner(struct psi::ecdh::EcdhPsiOptions& opt
       processed_item_cnt =
           options.recovery_manager->ecdh_dual_masked_cnt_from_peer();
     }
-
     SPDLOG_INFO("processed_item_cnt = {}", processed_item_cnt);
   }
-  SPDLOG_INFO("processed_item_cnt1 = {}", processed_item_cnt);
 
   std::future<void> f_mask_self = std::async([&] {
     std::vector<std::string> select_query(key_columns_.begin(), key_columns_.end());
     auto query_join = boost::algorithm::join(select_query, ",");
-    std::string query;
-    switch(datasource_kind_) {
-      case DataSourceKind::MYSQL:
-        query = "SELECT " + query_join + " FROM " + table_name_ + ";";
-        break;
-      case DataSourceKind::POSTGRESQL:
-        query = "SELECT " + query_join + " FROM " + table_name_ + ";";
-        break;
-      case DataSourceKind::ODBC:
-        switch (datasource_kind_sub_) {
-          case DataSourceKindSub::POSTGRESQL_ODBC:
-            query = "SELECT " + query_join + " FROM " + table_name_ + ";";
-            break;
-          case DataSourceKindSub::DAMENG_ODBC:
-            query = "SELECT " + query_join + " FROM " + table_name_ + ";";
-            break;
-          default:
-            YACL_THROW("unsupported datasource kind sub.");
-        }
-        break;
-      default:
-            YACL_THROW("unsupported datasource kind.");
-    }
+    std::string query = "SELECT " + query_join + " FROM " + table_name_ + ";";
     SPDLOG_INFO("select items string:{}", query);
     std::vector<std::string> batch_items;
     try {

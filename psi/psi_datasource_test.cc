@@ -23,6 +23,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <chrono>
 
 #include "arrow/api.h"
 #include "arrow/csv/api.h"
@@ -52,6 +53,7 @@ struct TestTable {
 
 struct TestParams {
   std::string title;
+  size_t ns;
   std::vector<TestTable> inputs;
   std::vector<TestTable> outputs;
   std::vector<std::vector<std::string>> keys;
@@ -227,6 +229,8 @@ TEST_P(PsiCsvTest, Works) {
 
   auto lctxs = yacl::link::test::SetupWorld(2);
 
+  std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now(); // 开始计时
+
   auto proc = [&](int idx) -> PsiResultReport {
     std::cout << "###idx: " << idx << std::endl;
     std::cout << "###input_paths[idx]: " << input_json[idx] << std::endl;
@@ -286,9 +290,14 @@ TEST_P(PsiCsvTest, Works) {
       EXPECT_EQ(params.outputs[i].rows, output_hat.rows);
     }
   }
+
+  std::chrono::high_resolution_clock::time_point finish = std::chrono::high_resolution_clock::now(); // 结束计时
+  auto during_time = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start).count();
+
   SPDLOG_INFO("**********************************************************");
   SPDLOG_INFO("**********************************************************");
   SPDLOG_INFO("******************* psi csv test end *********************");
+  SPDLOG_INFO("****************data_count: {}, during_time: {}ms*********", params.ns, during_time);
   SPDLOG_INFO("**********************************************************");
   SPDLOG_INFO("**********************************************************");
 }
@@ -298,7 +307,7 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Combine(
         testing::Values(v2::PROTOCOL_ECDH, v2::PROTOCOL_KKRT,v2::PROTOCOL_RR22),
         testing::Values(
-                        TestParams{"testcase 4: w/ payload",
+                        TestParams{"testcase 1: csv test, multi key", 4,
                        // inputs
                        {TestTable{{}, {}},
                         TestTable{{}, {}}},
@@ -381,6 +390,8 @@ TEST_P(PsiMysqlTest, Works) {
 
   auto lctxs = yacl::link::test::SetupWorld(2);
 
+  std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now(); // 开始计时
+
   auto proc = [&](int idx) -> PsiResultReport {
     std::cout << "###idx: " << idx << std::endl;
     v2::PsiConfig config;
@@ -441,9 +452,14 @@ TEST_P(PsiMysqlTest, Works) {
       EXPECT_EQ(params.outputs[i].rows, output_hat.rows);
     }
   }
+
+  std::chrono::high_resolution_clock::time_point finish = std::chrono::high_resolution_clock::now(); // 结束计时
+  auto during_time = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start).count();
+
   SPDLOG_INFO("**********************************************************");
   SPDLOG_INFO("**********************************************************");
   SPDLOG_INFO("******************* psi mysql test end *******************");
+  SPDLOG_INFO("****************data_count: {}, during_time: {}ms*********", params.ns, during_time);
   SPDLOG_INFO("**********************************************************");
   SPDLOG_INFO("**********************************************************");
 }
@@ -453,7 +469,7 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Combine(
         testing::Values(v2::PROTOCOL_ECDH, v2::PROTOCOL_KKRT,v2::PROTOCOL_RR22),
         testing::Values(
-                        TestParams{"testcase 4: w/ payload",
+                        TestParams{"testcase 2: mysql test", 1000,
                        // inputs
                        {TestTable{{}, {}},
                         TestTable{// header
@@ -544,6 +560,8 @@ TEST_P(PsiPgTest, Works) {
 
   auto lctxs = yacl::link::test::SetupWorld(2);
 
+  std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now(); // 开始计时
+
   auto proc = [&](int idx) -> PsiResultReport {
     std::cout << "###idx: " << idx << std::endl;
     v2::PsiConfig config;
@@ -604,9 +622,14 @@ TEST_P(PsiPgTest, Works) {
       EXPECT_EQ(params.outputs[i].rows, output_hat.rows);
     }
   }
+
+  std::chrono::high_resolution_clock::time_point finish = std::chrono::high_resolution_clock::now(); // 结束计时
+  auto during_time = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start).count();
+
   SPDLOG_INFO("**********************************************************");
   SPDLOG_INFO("**********************************************************");
   SPDLOG_INFO("******************* psi pg test end **********************");
+  SPDLOG_INFO("****************data_count: {}, during_time: {}ms*********", params.ns, during_time);
   SPDLOG_INFO("**********************************************************");
   SPDLOG_INFO("**********************************************************");
 }
@@ -616,7 +639,7 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Combine(
         testing::Values(v2::PROTOCOL_ECDH, v2::PROTOCOL_KKRT,v2::PROTOCOL_RR22),
         testing::Values(
-                        TestParams{"testcase 4: w/ payload",
+                        TestParams{"testcase 3: pg test", 15,
                        // inputs
                        {TestTable{{}, {}},
                         TestTable{// header
@@ -707,6 +730,8 @@ TEST_P(PsiPgOdbcTest, Works) {
 
   auto lctxs = yacl::link::test::SetupWorld(2);
 
+  std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now(); // 开始计时
+
   auto proc = [&](int idx) -> PsiResultReport {
     std::cout << "###idx: " << idx << std::endl;
     v2::PsiConfig config;
@@ -767,9 +792,14 @@ TEST_P(PsiPgOdbcTest, Works) {
       EXPECT_EQ(params.outputs[i].rows, output_hat.rows);
     }
   }
+
+  std::chrono::high_resolution_clock::time_point finish = std::chrono::high_resolution_clock::now(); // 结束计时
+  auto during_time = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start).count();
+
   SPDLOG_INFO("**********************************************************");
   SPDLOG_INFO("**********************************************************");
   SPDLOG_INFO("******************* psi pgodbc test end ******************");
+  SPDLOG_INFO("****************data_count: {}, during_time: {}ms*********", params.ns, during_time);
   SPDLOG_INFO("**********************************************************");
   SPDLOG_INFO("**********************************************************");
 }
@@ -779,7 +809,7 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Combine(
         testing::Values(v2::PROTOCOL_ECDH, v2::PROTOCOL_KKRT,v2::PROTOCOL_RR22),
         testing::Values(
-                        TestParams{"testcase 4: w/ payload",
+                        TestParams{"testcase 4: pg odbc test", 15,
                        // inputs
                        {TestTable{{}, {}},
                         TestTable{// header
@@ -796,6 +826,171 @@ INSTANTIATE_TEST_SUITE_P(
                        {{"id"}, {"id1"}},
                        /*disable_alignment = */ false,
                        /*broadcast_result = */ false})));
+
+class PsiDmOdbcSmallTest
+    : public testing::TestWithParam<std::tuple<v2::Protocol, TestParams>> {
+ protected:
+  void SetUp() override { tmp_dir_ = std::filesystem::temp_directory_path(); }
+  
+  std::vector<std::filesystem::path> GenTempPaths(
+      const std::string& name_prefix, int cnt) {
+    std::vector<std::filesystem::path> res;
+    res.reserve(cnt);
+    for (int i = 0; i < cnt; ++i) {
+      res.emplace_back(tmp_dir_ / fmt::format("{}-{}", name_prefix, i));
+    }
+    tmp_paths_.insert(tmp_paths_.end(), res.begin(), res.end());
+
+    return res;
+  }
+
+  std::filesystem::path tmp_dir_;
+  std::vector<std::filesystem::path> tmp_paths_;
+};
+
+TEST_P(PsiDmOdbcSmallTest, Works) {
+  SPDLOG_INFO("**********************************************************");
+  SPDLOG_INFO("**********************************************************");
+  SPDLOG_INFO("******************* psi dmodbc small test begin **********");
+  SPDLOG_INFO("**********************************************************");
+  SPDLOG_INFO("**********************************************************");
+  auto protocol = std::get<0>(GetParam());
+  auto params = std::get<1>(GetParam());
+
+  std::cout << "Test title: " << params.title << std::endl;
+  std::cout << "Protocol: " << protocol << std::endl;
+
+  const ::testing::TestInfo* const test_info =
+      ::testing::UnitTest::GetInstance()->current_test_info();
+
+  std::string test_suite_name = test_info->test_suite_name();
+  std::string test_case_name = test_info->test_case_name();
+  std::replace(test_suite_name.begin(), test_suite_name.end(), '/', '_');
+  std::replace(test_case_name.begin(), test_case_name.end(), '/', '_');
+
+  boost::uuids::random_generator uuid_generator;
+  auto uuid_str = boost::uuids::to_string(uuid_generator());
+
+  std::string test_name =
+      test_suite_name + "-" + test_case_name + "-" + uuid_str;
+
+ const std::string& datasource_json = "{\n"
+                             "  \"connection_str\": \"DSN=dm;SERVER=172.16.0.218;UID=SYSDBA;PWD=SYSDBA001;TCP_PORT=52360;\",\n"
+                             "  \"datasource_kind\": 3,\n"
+                             "  \"datasource_kind_sub\": 1,\n"
+                             "  \"table_name\": \"CREDIT_ACTIVE005\"\n"
+                             "}";
+
+  const std::string& datasource_json1 = "{\n"
+                             "  \"connection_str\": \"DSN=dm;SERVER=172.16.0.219;UID=SYSDBA;PWD=SYSDBA001;TCP_PORT=52360;\",\n"
+                             "  \"datasource_kind\": 3,\n"
+                             "  \"datasource_kind_sub\": 1,\n"
+                             "  \"table_name\": \"CREDIT_PASSIVE007\"\n"
+                             "}";
+  std::vector<std::string> input_paths{datasource_json, datasource_json1};
+  
+  std::vector<std::filesystem::path> output_paths =
+      GenTempPaths(test_name + "-output", 2);
+
+  auto lctxs = yacl::link::test::SetupWorld(2);
+
+  std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now(); // 开始计时
+
+  auto proc = [&](int idx) -> PsiResultReport {
+    std::cout << "###idx: " << idx << std::endl;
+    v2::PsiConfig config;
+    config.mutable_input_config()->set_path(input_paths[idx]);
+    config.mutable_input_config()->set_type(v2::IO_TYPE_SQL);
+    config.mutable_keys()->Add(params.keys[idx].begin(),
+                               params.keys[idx].end());
+    config.mutable_output_config()->set_path(output_paths[idx]);
+    config.mutable_output_config()->set_type(v2::IO_TYPE_FILE_CSV);
+    config.set_disable_alignment(params.disable_alignment);
+    config.mutable_protocol_config()->set_protocol(protocol);
+    if (protocol == v2::PROTOCOL_ECDH) {
+      config.mutable_protocol_config()->mutable_ecdh_config()->set_curve(
+          CurveType::CURVE_25519);
+    }
+    config.mutable_protocol_config()->set_broadcast_result(
+        params.broadcast_result);
+    config.set_advanced_join_type(params.advanced_join_type);
+    config.set_left_side(v2::Role::ROLE_RECEIVER);
+
+    std::unique_ptr<AbstractPsiParty> party;
+    if (idx == 0) {
+      config.mutable_protocol_config()->set_role(v2::Role::ROLE_RECEIVER);
+      party = createPsiParty(config, lctxs[idx]);
+    } else {
+      config.mutable_protocol_config()->set_role(v2::Role::ROLE_SENDER);
+      party = createPsiParty(config, lctxs[idx]);
+    }
+
+    return party->Run();
+  };
+
+  size_t world_size = lctxs.size();
+  std::vector<std::future<PsiResultReport>> f_links(world_size);
+  for (size_t i = 0; i < world_size; i++) {
+    f_links[i] = std::async(proc, i);
+  }
+
+  for (size_t i = 0; i < world_size; i++) {
+    std::exception_ptr exptr = nullptr;
+
+    PsiResultReport report;
+    try {
+      report = f_links[i].get();
+    } catch (const std::exception& e) {
+      exptr = std::current_exception();
+      SPDLOG_ERROR("Error from party {}: {}", i, e.what());
+    }
+
+    if (exptr) {
+      std::rethrow_exception(exptr);
+    }
+
+    // if (i == 0 || params.broadcast_result || params.advanced_join_type) {
+    //   TestTable output_hat = LoadTableFromFile(output_paths[i].string(),
+    //                                            params.outputs[i].headers);
+
+    //   EXPECT_EQ(params.outputs[i].rows, output_hat.rows);
+    // }
+
+  }
+
+  std::chrono::high_resolution_clock::time_point finish = std::chrono::high_resolution_clock::now(); // 结束计时
+  auto during_time = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start).count();
+
+  SPDLOG_INFO("**********************************************************");
+  SPDLOG_INFO("**********************************************************");
+  SPDLOG_INFO("******************* psi dmodbc small test end ************");
+  SPDLOG_INFO("****************data_count: {}, during_time: {}ms*********", params.ns, during_time);
+  SPDLOG_INFO("**********************************************************");
+  SPDLOG_INFO("**********************************************************");
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Works_Instances, PsiDmOdbcSmallTest,
+    testing::Combine(
+        testing::Values(v2::PROTOCOL_ECDH, v2::PROTOCOL_KKRT,v2::PROTOCOL_RR22),
+        testing::Values(
+                        TestParams{"testcase 5: dm odbc test, small data", 1000,
+                       // inputs
+                       {TestTable{{}, {}},
+                        TestTable{// header
+                                  {}, {}}},
+                       // outputs
+                       {TestTable{// header
+                                  {"ID1", "Y", "F1", "F2", "F3", "F4", "F5"},
+                                  {// row
+                                   {"3","wangwu","22.987","0"},
+                                   // row
+                                   {"4","zhaoliu","24.384","0"},
+                                   {"5","qianqi","26.254","0"}}}},
+                       // keys
+                       {{"ID1"}, {"ID2"}},
+                       /*disable_alignment = */ false,
+                       /*broadcast_result = */ true})));
 
 
 class PsiDmOdbcTest
@@ -865,6 +1060,8 @@ TEST_P(PsiDmOdbcTest, Works) {
 
   auto lctxs = yacl::link::test::SetupWorld(2);
 
+  std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now(); // 开始计时
+
   auto proc = [&](int idx) -> PsiResultReport {
     std::cout << "###idx: " << idx << std::endl;
     v2::PsiConfig config;
@@ -926,9 +1123,14 @@ TEST_P(PsiDmOdbcTest, Works) {
     // }
 
   }
+
+  std::chrono::high_resolution_clock::time_point finish = std::chrono::high_resolution_clock::now(); // 结束计时
+  auto during_time = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start).count();
+
   SPDLOG_INFO("**********************************************************");
   SPDLOG_INFO("**********************************************************");
   SPDLOG_INFO("******************* psi dmodbc test end ******************");
+  SPDLOG_INFO("****************data_count: {}, during_time: {}ms*********", params.ns, during_time);
   SPDLOG_INFO("**********************************************************");
   SPDLOG_INFO("**********************************************************");
 }
@@ -938,7 +1140,7 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Combine(
         testing::Values(v2::PROTOCOL_ECDH, v2::PROTOCOL_KKRT,v2::PROTOCOL_RR22),
         testing::Values(
-                        TestParams{"testcase 4: w/ payload",
+                        TestParams{"testcase 6: dm odbc test, big data", 150000,
                        // inputs
                        {TestTable{{}, {}},
                         TestTable{// header
