@@ -25,7 +25,7 @@
 #include "psi/legacy/bucket_psi.h"
 #include "psi/utils/ec_point_store.h"
 #include "psi/ecdh/ecdh_psi.h"
-
+#include "psi/utils/api_reader.h"
 #include "psi/proto/psi_v2.pb.h"
 
 
@@ -41,7 +41,7 @@ class PsiDatasourceOperate {
 
   CheckCsvReport CheckDatasource();
 
-  std::unique_ptr<HashBucketCache> GetDatasouceBatchContent(std::string input_bucket_store_path, size_t bucket_count);
+  std::unique_ptr<HashBucketCache> GetDatasourceBatchContent(std::string input_bucket_store_path, size_t bucket_count);
 
   void RunEcdhPsiDatasource(struct psi::ecdh::EcdhPsiOptions& options, std::shared_ptr<HashBucketEcPointStore> self_ec_point_store,
    std::shared_ptr<HashBucketEcPointStore> peer_ec_point_store);
@@ -53,10 +53,14 @@ class PsiDatasourceOperate {
  private:
   std::unique_ptr<HashBucketCache> GetTableContent(const std::string& cache_dir, uint32_t bucket_num, uint32_t read_batch_size = 4096, bool use_scoped_tmp_dir  = true);
 
+  std::unique_ptr<HashBucketCache> GetApiContent(const std::string& cache_dir, uint32_t bucket_num, uint32_t read_batch_size = 4096, bool use_scoped_tmp_dir  = true);
+
   template <typename T>
   size_t GenerateResultInner(const std::string& output_path, const T& indices, bool sort_output, bool digest_equal, bool output_difference = false);
 
-  size_t FilterFileByIndicesInner(const std::string& output, const std::filesystem::path& indices, bool output_difference);
+  size_t FilterFileByIndicesInTable(const std::string& output, const std::filesystem::path& indices, bool output_difference);
+
+  size_t FilterFileByIndicesInApi(const std::string& output, const std::filesystem::path& indices, bool output_difference);
   
   void RunEcdhPsiInner(struct psi::ecdh::EcdhPsiOptions& options, const std::shared_ptr<IEcPointStore>& self_ec_point_store,
     const std::shared_ptr<IEcPointStore>& peer_ec_point_store);
@@ -71,6 +75,7 @@ class PsiDatasourceOperate {
   size_t bucket_size_;
   std::shared_ptr<DatasourceAdaptor> adaptor_;
   std::shared_ptr<::psi::ILabeledBatchProvider> csv_batch_provider_;
+  std::shared_ptr<::psi::ApiReader> api_reader_;
   bool check_duplicates_;
   bool check_hash_digest_;
   bool disable_alignment_;

@@ -116,6 +116,8 @@ enum IoType {
   IO_TYPE_FILE_CSV = 1;
 
   IO_TYPE_SQL = 2;
+
+  IO_TYPE_API = 23;
 }
 
 // IO configuration.

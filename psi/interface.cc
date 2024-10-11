@@ -274,7 +274,7 @@ void AbstractPsiParty::CheckSelfConfig() {
     YACL_THROW("Role doesn't match.");
   }
 
-  if (config_.input_config().type() != v2::IO_TYPE_FILE_CSV && config_.input_config().type() != v2::IO_TYPE_SQL) {
+  if (config_.input_config().type() != v2::IO_TYPE_FILE_CSV && config_.input_config().type() != v2::IO_TYPE_SQL && config_.input_config().type() != v2::IO_TYPE_API) {
     YACL_THROW("Input type only supports IO_TYPE_FILE_CSV and IO_TYPE_SQL at this moment.");
   }
 

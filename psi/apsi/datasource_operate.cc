@@ -85,6 +85,12 @@ DatasourceOperate::DatasourceOperate(const PirServerConfig &config) {
       std::unique_ptr<psi::DatasourceAdaptorMgr> datasourceAdaptorMgr = std::make_unique<psi::DatasourceAdaptorMgr>();
       adaptor_ = datasourceAdaptorMgr->GetAdaptor(options);
   }
+
+  // API类型 
+  if (datasource_kind_ == psi::DataSourceKind::API) {
+      assert(d.HasMember("url"));
+      api_reader_ = std::make_shared<::psi::ApiReader>(d["url"].GetString(), key_columns_, label_columns_);
+  }
   // 其他类型待添加
 }
 
@@ -94,6 +100,9 @@ size_t DatasourceOperate::CountDataContentNums() {
   switch(datasource_kind_) {
     case DataSourceKind::CSVDB:
       count = CsvFileDataCount(server_file_path_, key_columns_);
+      break;
+    case DataSourceKind::API:
+      count = api_reader_->GetApiDataCount();
       break;
     case DataSourceKind::MYSQL:
     case DataSourceKind::POSTGRESQL:
@@ -116,12 +125,15 @@ size_t DatasourceOperate::CountDataContentNums() {
   return count;
 }
 
-std::pair<std::vector<std::string>, std::vector<std::string>> DatasourceOperate::GetDatasouceBatchContent(size_t current_patch, size_t batch_size) {
-  SPDLOG_INFO("GetDatasouceBatchContent enter, current_patch: {}, batch_size: {}", current_patch, batch_size);
+std::pair<std::vector<std::string>, std::vector<std::string>> DatasourceOperate::GetDatasourceBatchContent(size_t current_patch, size_t batch_size) {
+  SPDLOG_INFO("GetDatasourceBatchContent enter, current_patch: {}, batch_size: {}", current_patch, batch_size);
   std::pair<std::vector<std::string>, std::vector<std::string>> data_batch_content;
   switch(datasource_kind_) {
     case DataSourceKind::CSVDB:
       data_batch_content = csv_batch_provider_->ReadNextLabeledBatch();
+      break;
+    case DataSourceKind::API:
+      data_batch_content = api_reader_->GetApiBatchContent(current_patch, batch_size);
       break;
     case DataSourceKind::MYSQL:
     case DataSourceKind::POSTGRESQL:

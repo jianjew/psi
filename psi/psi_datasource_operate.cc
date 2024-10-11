@@ -32,7 +32,6 @@
 #include "rapidjson/stringbuffer.h"
 #include "spdlog/spdlog.h"
 
-
 namespace psi {
 
 PsiDatasourceOperate::PsiDatasourceOperate(const v2::PsiConfig& config) {
@@ -53,6 +52,9 @@ PsiDatasourceOperate::PsiDatasourceOperate(const v2::PsiConfig& config) {
   }
   if (config.input_config().type() == v2::IO_TYPE_SQL) {
     assert(datasource_kind_ == psi::DataSourceKind::MYSQL || datasource_kind_ == psi::DataSourceKind::POSTGRESQL || datasource_kind_ == psi::DataSourceKind::ODBC);
+  }
+  if (config.input_config().type() == v2::IO_TYPE_API) {
+    assert(datasource_kind_ == psi::DataSourceKind::API);
   }
   
   if (datasource_kind_ == psi::DataSourceKind::ODBC) {
@@ -78,6 +80,11 @@ PsiDatasourceOperate::PsiDatasourceOperate(const v2::PsiConfig& config) {
       std::unique_ptr<psi::DatasourceAdaptorMgr> datasourceAdaptorMgr = std::make_unique<psi::DatasourceAdaptorMgr>();
       adaptor_ = datasourceAdaptorMgr->GetAdaptor(options);
   }
+  // API类型 
+  if (datasource_kind_ == psi::DataSourceKind::API) {
+      assert(d.HasMember("url"));
+      api_reader_ = std::make_shared<::psi::ApiReader>(d["url"].GetString(), key_columns_);
+  }
   // 其他类型待添加
 }
 
@@ -87,6 +94,10 @@ CheckCsvReport PsiDatasourceOperate::CheckDatasource() {
   switch(datasource_kind_) {
     case DataSourceKind::CSVDB:
       report = CheckCsv(server_file_path_, key_columns_, check_duplicates_, check_hash_digest_);
+      break;
+    case DataSourceKind::API:
+      report.num_rows = api_reader_->GetApiDataCount();
+      SPDLOG_INFO("select count :{}", report.num_rows);
       break;
     case DataSourceKind::MYSQL:
     case DataSourceKind::POSTGRESQL:
@@ -109,8 +120,15 @@ CheckCsvReport PsiDatasourceOperate::CheckDatasource() {
   return report;
 }
 
-std::unique_ptr<HashBucketCache> PsiDatasourceOperate::GetDatasouceBatchContent(std::string input_bucket_store_path, size_t bucket_count) {
-  SPDLOG_INFO("GetDatasouceBatchContent enter, bucket_count: {}", bucket_count);
+/**
+ * 获取求交的列集合，如果对examples/psi/data/input_mulkey_1.csv "测试id3", "测试id4" 进行求交（和input_mulkey_2.csv 中"测试id1", "测试id2"，则结果为：
+ * 测试3,测试3
+ * 测试3,测试1
+ * 测试6,测试6
+ * 
+ */
+std::unique_ptr<HashBucketCache> PsiDatasourceOperate::GetDatasourceBatchContent(std::string input_bucket_store_path, size_t bucket_count) {
+  SPDLOG_INFO("GetDatasourceBatchContent enter, bucket_count: {}", bucket_count);
   if (input_bucket_store_path.empty()) {
     input_bucket_store_path = std::filesystem::path(server_file_path_).parent_path();
   }
@@ -118,6 +136,9 @@ std::unique_ptr<HashBucketCache> PsiDatasourceOperate::GetDatasouceBatchContent(
   switch(datasource_kind_) {
     case DataSourceKind::CSVDB:
       hash_bucket_cache = CreateCacheFromCsv(server_file_path_, key_columns_, input_bucket_store_path, bucket_count);
+      break;
+    case DataSourceKind::API:
+      hash_bucket_cache = GetApiContent(input_bucket_store_path, bucket_count);
       break;
     case DataSourceKind::MYSQL:
     case DataSourceKind::POSTGRESQL:
@@ -131,7 +152,7 @@ std::unique_ptr<HashBucketCache> PsiDatasourceOperate::GetDatasouceBatchContent(
 // todo 这里如何分页，是否需要分页， bigdata咋搞
 std::unique_ptr<HashBucketCache> PsiDatasourceOperate::GetTableContent(const std::string& cache_dir, uint32_t bucket_num, uint32_t read_batch_size,
     bool use_scoped_tmp_dir) {
-  SPDLOG_INFO("###CreateCacheFromCsv, cache_dir: {}, bucket_num: {}, read_batch_size: {}, use_scoped_tmp_dir: {}",
+  SPDLOG_INFO("###GetTableContent, cache_dir: {}, bucket_num: {}, read_batch_size: {}, use_scoped_tmp_dir: {}",
     cache_dir, bucket_num, read_batch_size, use_scoped_tmp_dir);
   auto bucket_cache = std::make_unique<HashBucketCache>(cache_dir, bucket_num, use_scoped_tmp_dir);
   std::vector<std::string> select_query(key_columns_.begin(), key_columns_.end());
@@ -164,14 +185,27 @@ std::unique_ptr<HashBucketCache> PsiDatasourceOperate::GetTableContent(const std
         }
         auto str_join = boost::algorithm::join(values, ",");
         bucket_cache->WriteItem(str_join);
-        // SPDLOG_INFO("###CreateCacheFromCsv, it: {}", str_join);
+        // SPDLOG_INFO("###GetTableContent, it: {}", str_join);
       }
     }
     bucket_cache->Flush();
   } catch (const std::exception& e) {
-      YACL_THROW("GetTableBatchContent Error: {}", e.what());
+      YACL_THROW("GetTableContent Error: {}", e.what());
   }
 
+  return bucket_cache;
+}
+
+std::unique_ptr<HashBucketCache> PsiDatasourceOperate::GetApiContent(const std::string& cache_dir, uint32_t bucket_num, uint32_t read_batch_size, bool use_scoped_tmp_dir) {
+  SPDLOG_INFO("###GetTableContent, cache_dir: {}, bucket_num: {}, read_batch_size: {}, use_scoped_tmp_dir: {}",
+    cache_dir, bucket_num, read_batch_size, use_scoped_tmp_dir);
+  auto bucket_cache = std::make_unique<HashBucketCache>(cache_dir, bucket_num, use_scoped_tmp_dir);
+  std::vector<std::string> intersection_ids = std::move(api_reader_->GetApiBatchContent(0, 0, false).first);
+  for (auto& id : intersection_ids) {
+    bucket_cache->WriteItem(id);
+    SPDLOG_INFO("###GetApiContent, it: {}", id);
+  }
+  bucket_cache->Flush();
   return bucket_cache;
 }
 
@@ -180,6 +214,9 @@ size_t PsiDatasourceOperate::PsiGenerateResult(const std::string& output_path, s
   switch(datasource_kind_) {
     case DataSourceKind::CSVDB:
       count = GenerateResult(server_file_path_, output_path, key_columns_, indices, sort_output, digest_equal, output_difference);
+      break;
+    case DataSourceKind::API:
+      count = GenerateResultInner(output_path, indices, sort_output, digest_equal, output_difference);
       break;
     case DataSourceKind::MYSQL:
     case DataSourceKind::POSTGRESQL:
@@ -218,7 +255,13 @@ size_t PsiDatasourceOperate::GenerateResultInner(const std::string& output_path,
     }
   });
 
-  size_t cnt = FilterFileByIndicesInner(tmp_sort_in_file, indices, output_difference);
+  size_t cnt = 0;
+  if (datasource_kind_ == DataSourceKind::API) {
+    cnt = FilterFileByIndicesInApi(tmp_sort_in_file, indices, output_difference);
+  } else {
+    cnt = FilterFileByIndicesInTable(tmp_sort_in_file, indices, output_difference);
+  }
+  
   SPDLOG_INFO("###GenerateResultInner:cnt: {}", cnt);
 
   if (sort_output && !digest_equal) {
@@ -231,8 +274,8 @@ size_t PsiDatasourceOperate::GenerateResultInner(const std::string& output_path,
   return cnt;
 }
 
-size_t PsiDatasourceOperate::FilterFileByIndicesInner(const std::string& output, const std::filesystem::path& indices, bool output_difference) {
-  SPDLOG_INFO("###FilterFileByIndicesInner:output: {}, indices: {}, output_difference: {}", output,indices.string(), output_difference);
+size_t PsiDatasourceOperate::FilterFileByIndicesInTable(const std::string& output, const std::filesystem::path& indices, bool output_difference) {
+  SPDLOG_INFO("###FilterFileByIndicesInTable:output: {}, indices: {}, output_difference: {}", output,indices.string(), output_difference);
   auto out = io::BuildOutputStream(io::FileIoOptions(output));
 
   std::string line;
@@ -316,7 +359,7 @@ size_t PsiDatasourceOperate::FilterFileByIndicesInner(const std::string& output,
         auto str_join = boost::algorithm::join(values, ",");
         
         // step2: select by index
-        // SPDLOG_INFO("###FilterFileByIndicesInner:str_join: {}, indx: {}", str_join, idx);
+        // SPDLOG_INFO("###FilterFileByIndicesInTable:str_join: {}, indx: {}", str_join, idx);
         if (!output_difference) {
           if (!intersection_index.has_value()) {
             break;
@@ -352,6 +395,51 @@ size_t PsiDatasourceOperate::FilterFileByIndicesInner(const std::string& output,
   return reader.read_cnt();
 }
 
+size_t PsiDatasourceOperate::FilterFileByIndicesInApi(const std::string& output, const std::filesystem::path& indices, bool output_difference) {
+  SPDLOG_INFO("###FilterFileByIndicesInApi:output: {}, indices: {}, output_difference: {}", output,indices.string(), output_difference);
+  auto out = io::BuildOutputStream(io::FileIoOptions(output));
+
+  std::string line;
+  size_t idx = 0;
+  size_t actual_count = 0;
+  IndexReader reader(indices);
+
+  std::optional<uint64_t> intersection_index = reader.GetNext();
+  std::vector<std::string> all_data = api_reader_->GetApiAllContent();
+  
+  SPDLOG_INFO("###culumn_name_values_join: {}", all_data[0]);
+  out->Write(all_data[0]);
+  out->Write("\n");
+  for (int64_t idx_in_batch = 1; idx_in_batch < all_data.size(); idx_in_batch++) {
+    {
+      // 拼接后的一行数据
+      auto str_join = all_data[idx_in_batch];
+      SPDLOG_INFO("###FilterFileByIndicesInApi:str_join: {}, indx: {}", str_join, idx);
+      if (!output_difference) {
+        if (!intersection_index.has_value()) {
+          break;
+        }
+      }
+      if ((intersection_index.has_value() && intersection_index.value() == idx) != output_difference) {
+        out->Write(str_join);
+        out->Write("\n");
+        actual_count++;
+      }
+      if (intersection_index.has_value() &&
+          intersection_index.value() == idx) {
+        intersection_index = reader.GetNext();
+      }
+      idx++;
+    }
+  }
+
+  size_t target_count = (output_difference ? (idx - reader.read_cnt()) : reader.read_cnt());
+
+  out->Close();
+
+  return reader.read_cnt();
+}
+
 void PsiDatasourceOperate::RunEcdhPsiDatasource(struct psi::ecdh::EcdhPsiOptions& options, std::shared_ptr<HashBucketEcPointStore> self_ec_point_store,
    std::shared_ptr<HashBucketEcPointStore> peer_ec_point_store) {
   SPDLOG_INFO("###RunEcdhPsiDatasource enter");
@@ -361,6 +449,7 @@ void PsiDatasourceOperate::RunEcdhPsiDatasource(struct psi::ecdh::EcdhPsiOptions
       csv_ptr = std::dynamic_pointer_cast<::psi::ArrowCsvBatchProvider>(csv_batch_provider_);
       psi::ecdh::RunEcdhPsi(options, csv_ptr, self_ec_point_store, peer_ec_point_store);
       break;
+    case DataSourceKind::API:
     case DataSourceKind::MYSQL:
     case DataSourceKind::POSTGRESQL:
     case DataSourceKind::ODBC:
@@ -377,6 +466,9 @@ size_t PsiDatasourceOperate::GetEcdhPsiDataSize() {
     case DataSourceKind::CSVDB:
       csv_ptr = std::dynamic_pointer_cast<::psi::ArrowCsvBatchProvider>(csv_batch_provider_);
       data_count = csv_ptr->row_cnt();
+      break;
+    case DataSourceKind::API:
+      data_count = api_reader_->row_cnt();
       break;
     case DataSourceKind::MYSQL:
     case DataSourceKind::POSTGRESQL:
@@ -415,45 +507,50 @@ void PsiDatasourceOperate::RunEcdhPsiInner(struct psi::ecdh::EcdhPsiOptions& opt
     SPDLOG_INFO("processed_item_cnt = {}", processed_item_cnt);
   }
 
+  // fix by jianjew
   std::future<void> f_mask_self = std::async([&] {
-    std::vector<std::string> select_query(key_columns_.begin(), key_columns_.end());
-    auto query_join = boost::algorithm::join(select_query, ",");
-    std::string query = "SELECT " + query_join + " FROM " + table_name_ + ";";
-    SPDLOG_INFO("select items string:{}", query);
     std::vector<std::string> batch_items;
-    try {
-      auto query_result = adaptor_->ExecQuery(query);
-      size_t num_rows = query_result[0]->Length();
-      SPDLOG_INFO("batch num_rows: {}, key_columns_ size: {}", num_rows, key_columns_.size());
-      std::vector<std::shared_ptr<arrow::StringArray>> arrays;
-      arrays.clear();
-      for (int i = 0; i < query_result.size(); i++) {
-          std::shared_ptr<arrow::ChunkedArray> chunked_array = query_result[i]->ToArrowChunkedArray();
-          arrays.emplace_back(std::static_pointer_cast<arrow::StringArray>(chunked_array->chunk(0)));
-      }
-      for (int64_t idx_in_batch = 0; idx_in_batch < num_rows; idx_in_batch++) {
-        {
-          std::vector<std::string> values;
-          for (size_t i = 0; i < key_columns_.size(); i++) {
-            if (arrays[i]->type()->id() == arrow::Type::STRING || arrays[i]->type()->id() == arrow::Type::LARGE_STRING) {
-              std::string tmp_str = arrays[i]->GetScalar(idx_in_batch).ValueOrDie()->ToString();
-              int start_idx = tmp_str.find_first_of('"') + 1;
-              int end_idx = tmp_str.find_last_of('"');
-              tmp_str = tmp_str.substr(start_idx, end_idx - start_idx);
-              values.emplace_back(tmp_str);
-            } else {
-              values.emplace_back(arrays[i]->GetScalar(idx_in_batch).ValueOrDie()->ToString());
-            }
-          }
-          auto item = boost::algorithm::join(values, ",");
-          // SPDLOG_INFO("###RunEcdhPsiInner, item: {}", item);
-          batch_items.emplace_back(item);
+    if (datasource_kind_ == DataSourceKind::API) {
+      batch_items = std::move(api_reader_->GetApiBatchContent(0, 0, false).first);
+    } else {
+      std::vector<std::string> select_query(key_columns_.begin(), key_columns_.end());
+      auto query_join = boost::algorithm::join(select_query, ",");
+      std::string query = "SELECT " + query_join + " FROM " + table_name_ + ";";
+      SPDLOG_INFO("select items string:{}", query);
+      try {
+        auto query_result = adaptor_->ExecQuery(query);
+        size_t num_rows = query_result[0]->Length();
+        SPDLOG_INFO("batch num_rows: {}, key_columns_ size: {}", num_rows, key_columns_.size());
+        std::vector<std::shared_ptr<arrow::StringArray>> arrays;
+        arrays.clear();
+        for (int i = 0; i < query_result.size(); i++) {
+            std::shared_ptr<arrow::ChunkedArray> chunked_array = query_result[i]->ToArrowChunkedArray();
+            arrays.emplace_back(std::static_pointer_cast<arrow::StringArray>(chunked_array->chunk(0)));
         }
+        for (int64_t idx_in_batch = 0; idx_in_batch < num_rows; idx_in_batch++) {
+          {
+            std::vector<std::string> values;
+            for (size_t i = 0; i < key_columns_.size(); i++) {
+              if (arrays[i]->type()->id() == arrow::Type::STRING || arrays[i]->type()->id() == arrow::Type::LARGE_STRING) {
+                std::string tmp_str = arrays[i]->GetScalar(idx_in_batch).ValueOrDie()->ToString();
+                int start_idx = tmp_str.find_first_of('"') + 1;
+                int end_idx = tmp_str.find_last_of('"');
+                tmp_str = tmp_str.substr(start_idx, end_idx - start_idx);
+                values.emplace_back(tmp_str);
+              } else {
+                values.emplace_back(arrays[i]->GetScalar(idx_in_batch).ValueOrDie()->ToString());
+              }
+            }
+            auto item = boost::algorithm::join(values, ",");
+            // SPDLOG_INFO("###RunEcdhPsiTable, item: {}", item);
+            batch_items.emplace_back(item);
+          }
+        }
+      } catch (const std::exception& e) {
+          YACL_THROW("GetTableBatchContent Error: {}", e.what());
       }
-    } catch (const std::exception& e) {
-        YACL_THROW("GetTableBatchContent Error: {}", e.what());
     }
-    handler.MaskSelfDatasource(batch_items);  // fix by jianjew
+    handler.MaskSelfDatasource(batch_items);  
     SPDLOG_INFO("ID {}: MaskSelf finished.", handler.Id());
   });
   std::future<void> f_mask_peer = std::async([&] {

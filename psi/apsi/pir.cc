@@ -270,7 +270,7 @@ PirResultReport PirServerSetup(const PirServerConfig &config) {
 
     std::vector<std::string> batch_ids;
     std::vector<std::string> batch_labels;
-    std::tie(batch_ids, batch_labels) = datasource_operate->GetDatasouceBatchContent(i, bucket_size);
+    std::tie(batch_ids, batch_labels) = datasource_operate->GetDatasourceBatchContent(i, bucket_size);
     if (batch_ids.empty()) {
       SPDLOG_INFO("Finish read data");
       break;

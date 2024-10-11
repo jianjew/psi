@@ -20,6 +20,7 @@
 #include "psi/datasource/datasource_base.h"
 #include "psi/datasource/datasource_adaptor_mgr.h"
 #include "psi/utils/arrow_csv_batch_provider.h"
+#include "psi/utils/api_reader.h"
 #include "psi/proto/pir.pb.h"
 
 namespace psi {
@@ -35,7 +36,7 @@ class DatasourceOperate {
 
   size_t CountDataContentNums();
 
-  std::pair<std::vector<std::string>, std::vector<std::string>> GetDatasouceBatchContent(size_t current_patch, size_t batch_size);
+  std::pair<std::vector<std::string>, std::vector<std::string>> GetDatasourceBatchContent(size_t current_patch, size_t batch_size);
 
  private:
   std::pair<std::vector<std::string>, std::vector<std::string>> GetTableBatchContent(size_t current_patch, size_t batch_size);
@@ -51,6 +52,7 @@ class DatasourceOperate {
   size_t bucket_size_;
   std::shared_ptr<DatasourceAdaptor> adaptor_;
   std::shared_ptr<::psi::ILabeledBatchProvider> csv_batch_provider_;
+  std::shared_ptr<::psi::ApiReader> api_reader_;
 };
 
 }  // namespace psi

@@ -23,6 +23,7 @@ namespace psi {
     ODBC= 3,
     SQLITE=4,
     CSVDB=5,
+    API=23,
   };
 
  enum DataSourceKindSub {

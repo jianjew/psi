@@ -65,7 +65,7 @@ void Rr22PsiReceiver::PreProcess() {
         //     recovery_manager_->input_bucket_store_path(), bucket_count_);
         
         // add by jianjew
-        input_bucket_store_ = psi_datasource_operate_->GetDatasouceBatchContent(recovery_manager_->input_bucket_store_path(), bucket_count_);
+        input_bucket_store_ = psi_datasource_operate_->GetDatasourceBatchContent(recovery_manager_->input_bucket_store_path(), bucket_count_);
       } else {
         // input_bucket_store_ = CreateCacheFromCsv(
         //     config_.input_config().path(), keys,
@@ -73,7 +73,7 @@ void Rr22PsiReceiver::PreProcess() {
         //     bucket_count_);
 
         // add by jianjew
-        input_bucket_store_ = psi_datasource_operate_->GetDatasouceBatchContent("", bucket_count_);
+        input_bucket_store_ = psi_datasource_operate_->GetDatasourceBatchContent("", bucket_count_);
       }
     });
 

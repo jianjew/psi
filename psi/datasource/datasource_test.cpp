@@ -57,6 +57,7 @@ std::string getConnectionStr(const psi::DataSourceKind kind) {
 
 int main() {
     std::vector<psi::DataSourceKind> kinds = {psi::DataSourceKind::MYSQL, psi::DataSourceKind::POSTGRESQL, psi::DataSourceKind::ODBC};
+    
     std::unique_ptr<psi::DatasourceAdaptorMgr> datasourceAdaptorMgr = std::make_unique<psi::DatasourceAdaptorMgr>();
     psi::DataSource options;
     std::string query = "";

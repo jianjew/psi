@@ -236,6 +236,20 @@ psi_cc_library(
     ],
 )
 
+psi_cc_library(
+    name = "api_reader",
+    srcs = ["api_reader.cc"],
+    hdrs = ["api_reader.h"],
+    deps = [
+        "@com_github_tencent_rapidjson//:rapidjson",
+        "@yacl//yacl/base:exception",
+        "@boost//:algorithm",
+    ],
+    linkopts = [
+        "-lcurl",
+    ],
+)
+
 psi_cc_test(
     name = "arrow_csv_batch_provider_test",
     srcs = ["arrow_csv_batch_provider_test.cc"],

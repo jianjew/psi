@@ -153,6 +153,7 @@ cc_library(
         "//psi/legacy:bucket_psi",
         "//psi/ecdh:ecdh_psi",
         "//psi/utils:ec_point_store",
+        "//psi/utils:api_reader",
         "@org_apache_arrow//:arrow",
         "//psi/utils:key",
         "@com_github_tencent_rapidjson//:rapidjson",
